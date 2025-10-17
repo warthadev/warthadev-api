@@ -7,9 +7,52 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
     <style>
-        /* [Bagian CSS Header, Disk Usage, dan List View tidak ditampilkan demi keringkasan, tapi asumsikan kode sebelumnya sudah ada di sini] */
+        /* --- CSS Umum --- */
+        body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 0; padding-bottom: 60px; }
+        a { text-decoration: none; color: inherit; }
         
-        /* ... CSS sebelumnya ... */
+        /* HEADER INFORMASI */
+        .info-header { 
+            padding: 15px 20px; 
+            border-bottom: 1px solid #eee; 
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* [KOREKSI] Styling Disk Usage Bar Ditingkatkan */
+        .disk-bar-wrapper {
+            display: flex;
+            gap: 10px; 
+            margin-bottom: 10px; 
+            font-size: 0.8em;
+            flex-wrap: wrap; 
+        }
+        .disk-item {
+            flex-grow: 1; 
+            /* Memberi background dan padding yang jelas untuk setiap item disk */
+            background-color: #f8f8f8; 
+            border: 1px solid #eee;
+            border-radius: 4px;
+            padding: 8px 10px;
+        }
+        
+        /* [KOREKSI] Styling Path Diperjelas */
+        .current-path { 
+            background-color: #f8f8f8; 
+            padding: 8px 15px; 
+            border-radius: 4px; 
+            font-size: 0.9em; 
+            word-wrap: break-word; 
+            /* Reset warna agar tidak terpengaruh oleh border seleksi */
+            border: none;
+        }
+
+        .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+        .progress { height: 10px; border-radius: 5px; background-color: #007bff; transition: width 0.4s; }
+        
+        /* FILE LIST */
+        .file-list { padding: 20px; padding-top: 5px; display: block; }
         
         /* FILE ITEM (LIST VIEW - Horizontal size) */
         .file-item { 
@@ -17,48 +60,75 @@
             justify-content: space-between; 
             align-items: center; 
             padding: 10px 15px; 
+            /* [KOREKSI] JANGAN GANTI BORDER-BOTTOM, hanya ganti border-bottom-color */
             border-bottom: 1px solid #eee; 
-            transition: background-color 0.2s, border-color 0.2s; /* Tambahkan transisi border */
+            transition: background-color 0.2s, border-color 0.2s; 
             cursor: default; 
             position: relative;
-            user-select: none; /* Mencegah seleksi teks saat long press */
+            user-select: none;
+            /* [KOREKSI] Reset border agar tidak ada garis aneh */
+            border-left: none !important;
         }
-        
-        /* [BARU] CSS untuk Status Terpilih (SELECTED) */
-        .file-item.selected {
-            background-color: #f0f8ff; /* Warna latar belakang ringan */
-            border-left: 5px solid #007bff; /* Perubahan warna pada border kiri yang tebal */
-            /* Mengubah warna border di List View */
-            border-bottom-color: #007bff; 
-        }
-
-        /* [BARU] CSS untuk Status Terpilih pada Grid View */
-        .file-list.grid-view .file-item.selected {
-            border: 2px solid #007bff; /* Perubahan warna border penuh untuk Grid View */
-            box-shadow: 0 0 5px rgba(0, 123, 255, 0.5); /* Efek bayangan ringan */
-            border-left: 2px solid #007bff; /* Reset border-left */
-        }
-        
-        /* ... SISA CSS (Grid View, Responsive, Footer) ... */
-
-        /* [SISA CSS DARI KODE SEBELUMNYA DIMASUKKAN DI SINI] */
-
-        /* FILE ITEM (LIST VIEW - Lanjutan) */
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
+        
+        /* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal */
         .file-text-container { flex: 1; overflow: hidden; display: block; }
         .file-name { white-space: normal; word-break: break-all; font-weight: 500; display: inline-block; margin-right: 15px; max-width: calc(100% - 100px); }
         .file-size { font-size: 0.8em; color: #6c757d; float: right; }
+        
+        /* Sembunyikan Teks Absolute di List View */
         .file-name-absolute, .file-size-absolute { display: none; }
         
-        /* GRID VIEW STYLES */
+        /* [BARU] CSS untuk Status Terpilih (SELECTED) */
+        .file-item.selected {
+            background-color: #f0ffef; /* Warna latar belakang ringan */
+            border-left: 5px solid #28a745; /* Border KIRI HIJAU TEBAL */
+            border-bottom-color: #ccffdd; /* Border bawah sedikit berubah */
+        }
+
+        /* --- GRID VIEW STYLES --- */
         .file-list.grid-view { display: grid; gap: 10px; padding: 10px; }
-        .file-list.grid-view .file-item { height: 0; padding-bottom: 100%; padding-top: 0; position: relative; display: block; text-align: center; border: 1px solid #ddd; border-radius: 8px; overflow: hidden; }
+
+        .file-list.grid-view .file-item {
+            /* Kotak Persegi (1:1) */
+            height: 0; 
+            padding-bottom: 100%; 
+            padding-top: 0;
+            position: relative;
+            display: block;
+            text-align: center;      
+            border: 1px solid #ddd; /* Border normal Grid */
+            border-radius: 8px;
+            overflow: hidden; 
+        }
+        
+        /* [BARU] CSS untuk Status Terpilih pada Grid View */
+        .file-list.grid-view .file-item.selected {
+            border: 2px solid #28a745; /* Border penuh HIJAU untuk Grid View */
+            box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); 
+            background-color: #e9fff1;
+        }
+        
+        /* Sembunyikan Teks List View di Grid View */
         .file-list.grid-view .file-text-container { display: none; }
-        .file-list.grid-view .file-item i { font-size: 3.0em; margin: 0; padding: 0; position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); }
+
+        /* Ikon CENTER ABSOLUTE MUTLAK */
+        .file-list.grid-view .file-item i {
+            font-size: 3.0em; 
+            margin: 0; 
+            padding: 0;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        /* Teks Absolute di Grid View */
         .file-list.grid-view .file-name-absolute { display: block; position: absolute; top: 5px; left: 5px; max-width: 85%; font-size: 0.7em; color: #495057; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; background-color: rgba(255, 255, 255, 0.7); border-radius: 3px; font-weight: bold; z-index: 5; }
         .file-list.grid-view .file-size-absolute { display: block; position: absolute; bottom: 5px; right: 5px; font-size: 0.7em; color: #6c757d; padding: 2px 4px; background-color: rgba(255, 255, 255, 0.7); border-radius: 3px; z-index: 5; }
-        
-        /* RESPONSIVE MEDIA QUERIES */
+
+
+        /* --- RESPONSIVE MEDIA QUERIES --- */
         @media (max-width: 600px) {
             .file-list.grid-view { grid-template-columns: repeat(2, 1fr); }
             .disk-bar-wrapper { flex-direction: column; }
@@ -73,7 +143,6 @@
         .nav-icon i { font-size: 1.2em; }
         .nav-icon span { font-size: 0.7em; margin-top: 3px; }
         .nav-icon:hover { color: #ffffff; }
-        
     </style>
 </head>
 <body>
@@ -248,19 +317,27 @@
                 item.addEventListener('touchcancel', endPress);
 
                 function startPress(e) {
-                    if (e.button === 0 || e.touches) { // Hanya merespons tombol kiri mouse atau sentuhan
+                    // [KOREKSI] Pastikan timer bersih sebelum dimulai
+                    clearTimeout(pressTimer);
+                    
+                    if (e.button === 0 || e.touches) {
                         pressTimer = setTimeout(() => {
                             // Long Press Terdeteksi
-                            selectionMode = true; // Aktifkan mode seleksi
+                            selectionMode = true; 
                             toggleSelection(item);
-                            // Mencegah event click/tap yang muncul setelah long press
-                            if (isAnchor) e.preventDefault();
+                            // Mencegah navigasi folder setelah long press
+                            if (isAnchor) e.preventDefault(); 
                         }, LONG_PRESS_THRESHOLD);
                     }
                 }
 
-                function endPress() {
+                function endPress(e) {
                     clearTimeout(pressTimer);
+                    
+                    // [KOREKSI] Jika long press sudah terjadi, cegah click event (untuk a href)
+                    if (selectionMode && e.type.includes('up') && isAnchor) {
+                        e.preventDefault();
+                    }
                 }
                 
             });
@@ -274,9 +351,6 @@
                     selectionMode = false;
                 }
             }
-            
-            // --- 4. Memastikan Link Folder berfungsi normal jika tidak dalam Selection Mode ---
-            // Item folder adalah tag <a>. Kita sudah menangani ini di event click di atas.
         });
     </script>
 
