@@ -20,7 +20,7 @@
             flex-direction: column;
         }
 
-        /* [KOREKSI] Styling Disk Usage Bar Ditingkatkan */
+        /* Styling Disk Usage Bar */
         .disk-bar-wrapper {
             display: flex;
             gap: 10px; 
@@ -30,21 +30,19 @@
         }
         .disk-item {
             flex-grow: 1; 
-            /* Memberi background dan padding yang jelas untuk setiap item disk */
             background-color: #f8f8f8; 
             border: 1px solid #eee;
             border-radius: 4px;
             padding: 8px 10px;
         }
         
-        /* [KOREKSI] Styling Path Diperjelas */
+        /* Styling Path Diperjelas */
         .current-path { 
             background-color: #f8f8f8; 
             padding: 8px 15px; 
             border-radius: 4px; 
             font-size: 0.9em; 
             word-wrap: break-word; 
-            /* Reset warna agar tidak terpengaruh oleh border seleksi */
             border: none;
         }
 
@@ -60,13 +58,11 @@
             justify-content: space-between; 
             align-items: center; 
             padding: 10px 15px; 
-            /* [KOREKSI] JANGAN GANTI BORDER-BOTTOM, hanya ganti border-bottom-color */
             border-bottom: 1px solid #eee; 
             transition: background-color 0.2s, border-color 0.2s; 
             cursor: default; 
             position: relative;
             user-select: none;
-            /* [KOREKSI] Reset border agar tidak ada garis aneh */
             border-left: none !important;
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
@@ -79,11 +75,11 @@
         /* Sembunyikan Teks Absolute di List View */
         .file-name-absolute, .file-size-absolute { display: none; }
         
-        /* [BARU] CSS untuk Status Terpilih (SELECTED) */
+        /* CSS untuk Status Terpilih (SELECTED) - LIST VIEW */
         .file-item.selected {
-            background-color: #f0ffef; /* Warna latar belakang ringan */
+            background-color: #f0ffef; 
             border-left: 5px solid #28a745; /* Border KIRI HIJAU TEBAL */
-            border-bottom-color: #ccffdd; /* Border bawah sedikit berubah */
+            border-bottom-color: #ccffdd;
         }
 
         /* --- GRID VIEW STYLES --- */
@@ -102,9 +98,11 @@
             overflow: hidden; 
         }
         
-        /* [BARU] CSS untuk Status Terpilih pada Grid View */
+        /* [KOREKSI UTAMA] CSS untuk Status Terpilih pada Grid View */
         .file-list.grid-view .file-item.selected {
-            border: 2px solid #28a745; /* Border penuh HIJAU untuk Grid View */
+            /* Pastikan border 2px solid dan tambahkan outline sebagai fall-back visual */
+            border: 2px solid #28a745 !important; /* !important untuk memastikan override */
+            outline: 2px solid #28a745; /* Tambahkan outline sebagai solid border di luar */
             box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); 
             background-color: #e9fff1;
         }
@@ -277,7 +275,6 @@
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // Nonaktifkan mode seleksi saat kembali
                     selectionMode = false;
                     document.querySelectorAll('.file-item.selected').forEach(item => item.classList.remove('selected'));
                     window.history.back();
@@ -293,7 +290,7 @@
                 if (isAnchor) {
                     item.addEventListener('click', function(e) {
                         if (selectionMode) {
-                            e.preventDefault(); // Mencegah navigasi jika dalam mode seleksi
+                            e.preventDefault();
                             toggleSelection(item);
                         }
                     });
@@ -317,15 +314,12 @@
                 item.addEventListener('touchcancel', endPress);
 
                 function startPress(e) {
-                    // [KOREKSI] Pastikan timer bersih sebelum dimulai
                     clearTimeout(pressTimer);
                     
                     if (e.button === 0 || e.touches) {
                         pressTimer = setTimeout(() => {
-                            // Long Press Terdeteksi
                             selectionMode = true; 
                             toggleSelection(item);
-                            // Mencegah navigasi folder setelah long press
                             if (isAnchor) e.preventDefault(); 
                         }, LONG_PRESS_THRESHOLD);
                     }
@@ -334,7 +328,6 @@
                 function endPress(e) {
                     clearTimeout(pressTimer);
                     
-                    // [KOREKSI] Jika long press sudah terjadi, cegah click event (untuk a href)
                     if (selectionMode && e.type.includes('up') && isAnchor) {
                         e.preventDefault();
                     }
@@ -345,7 +338,6 @@
             function toggleSelection(item) {
                 item.classList.toggle('selected');
                 
-                // Cek apakah tidak ada item yang terpilih, jika ya, matikan selectionMode
                 const selectedCount = document.querySelectorAll('.file-item.selected').length;
                 if (selectedCount === 0) {
                     selectionMode = false;
