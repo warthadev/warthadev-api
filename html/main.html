@@ -18,7 +18,7 @@
         .progress { height: 10px; border-radius: 5px; background-color: #007bff; transition: width 0.4s; }
         .file-list { padding: 20px; padding-top: 5px; display: block; }
         
-        /* FILE ITEM (LIST VIEW - Versi Asli) */
+        /* FILE ITEM (LIST VIEW - Perbaikan Utama di sini) */
         .file-item { 
             display: flex; 
             justify-content: space-between; 
@@ -30,67 +30,78 @@
             position: relative;
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
-        .file-text-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
-        .file-name { white-space: normal; word-break: break-all; font-weight: 500; order: 1; }
-        .file-size { font-size: 0.8em; color: #6c757d; order: 2; }
+        
+        /* [PERBAIKAN] Mengatur agar nama dan ukuran sejajar horizontal */
+        .file-text-container { 
+            flex: 1; 
+            overflow: hidden; 
+            /* UBAH display: flex menjadi display: block */
+            display: block; 
+            /* Hapus flex-direction: column; */
+        }
+        
+        .file-name { 
+            white-space: normal; 
+            word-break: break-all; 
+            font-weight: 500; 
+            /* order: 1; DIHAPUS */
+            /* Mengatur nama file agar menempati sebagian besar ruang, tapi tetap sejajar */
+            display: inline-block; 
+            margin-right: 15px; 
+            max-width: calc(100% - 100px); /* Beri ruang untuk size */
+        }
+        .file-size { 
+            font-size: 0.8em; 
+            color: #6c757d; 
+            /* order: 2; DIHAPUS */
+            /* Pastikan ukuran file mengambang di kanan nama file */
+            float: right; 
+        }
         
         /* [PENTING] Sembunyikan Teks Absolute di List View */
         .file-name-absolute, .file-size-absolute {
             display: none;
         }
 
-        /* --- GRID VIEW STYLES BARU --- */
+        /* --- GRID VIEW STYLES (Tidak Berubah) --- */
         .file-list.grid-view {
             display: grid; 
             gap: 10px; 
             padding: 10px;
-            /* Responsive akan diatur di media queries */
         }
 
         .file-list.grid-view .file-item {
-            /* PENTING: Membuat kotak 1:1 (Persegi) */
             height: 0; 
             padding-bottom: 100%; 
-            padding-top: 0; /* Override padding top/bottom dari list view */
-            
-            position: relative; /* Wajib untuk posisi absolute anak-anaknya */
-            
-            /* Hapus display: flex yang mengganggu centering ikon */
-            display: block; 
-            
+            padding-top: 0;
+            position: relative;
+            display: block;
             text-align: center;      
             border: 1px solid #ddd;
             border-radius: 8px;
             overflow: hidden; 
         }
         
-        /* [PENTING] Sembunyikan Teks List View di Grid View */
         .file-list.grid-view .file-text-container {
             display: none; 
         }
 
-        /* Ikon Diperbesar dan Dijamin CENTER ABSOLUTE MUTLAK */
         .file-list.grid-view .file-item i {
             font-size: 3.0em; 
             margin: 0; 
             padding: 0;
-            
-            /* Teknik Absolute Centering */
             position: absolute;
             top: 50%;
             left: 50%;
-            transform: translate(-50%, -50%); /* Geser kembali setengah lebar dan tinggi ikon */
+            transform: translate(-50%, -50%);
         }
 
-        /* [AKTIFKAN] Posisi Absolute untuk Teks di Grid View */
-        
-        /* Nama File: Kiri Atas Absolute */
+        /* Teks Absolute di Grid View */
         .file-list.grid-view .file-name-absolute {
-            display: block; /* Tampilkan */
+            display: block;
             position: absolute;
-            top: 5px; 
-            left: 5px; 
-            max-width: 85%; /* Sedikit lebih kecil agar tidak menempel ke batas kanan */
+            top: 5px; left: 5px; 
+            max-width: 85%; 
             font-size: 0.7em;
             color: #495057;
             white-space: nowrap;
@@ -103,12 +114,10 @@
             z-index: 5;
         }
 
-        /* Ukuran File: Kanan Bawah Absolute */
         .file-list.grid-view .file-size-absolute {
-            display: block; /* Tampilkan */
+            display: block;
             position: absolute;
-            bottom: 5px; 
-            right: 5px; 
+            bottom: 5px; right: 5px; 
             font-size: 0.7em;
             color: #6c757d;
             padding: 2px 4px;
@@ -118,23 +127,17 @@
         }
 
 
-        /* --- RESPONSIVE MEDIA QUERIES --- */
-        
-        /* Mobile: 2 Kolom */
+        /* --- RESPONSIVE MEDIA QUERIES (Tidak Berubah) --- */
         @media (max-width: 600px) {
             .file-list.grid-view { 
                 grid-template-columns: repeat(2, 1fr); 
             }
         }
-
-        /* Desktop/Tablet Besar: 4 Kolom */
         @media (min-width: 601px) {
             .file-list.grid-view { 
                 grid-template-columns: repeat(4, 1fr); 
             }
         }
-        /* --- CSS responsif yang jelas di atas ini --- */
-
 
         /* FIXED FOOTER (NAVBAR) */
         .fixed-footer { position: fixed; bottom: 0; width: 100%; max-width: 800px; background-color: #212529; color: white; box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; display: flex; justify-content: space-around; align-items: center; height: 55px; }
@@ -142,7 +145,6 @@
         .nav-icon i { font-size: 1.2em; }
         .nav-icon span { font-size: 0.7em; margin-top: 3px; }
         .nav-icon:hover { color: #ffffff; }
-        /* --- SELURUH KODE CSS BERAKHIR DI SINI --- */
     </style>
 </head>
 <body>
@@ -176,15 +178,14 @@
                 {% if f['is_dir'] %}
                     <a href="/?path={{ target_path }}" class="file-item file-folder">
                         
-                        {# Nama File Kiri Atas (Absolute) - Selalu Render #}
+                        {# Teks Absolute Grid View (Sembunyi di CSS) #}
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
                         
                         <i class="fas {{ icon_class }} fa-fw"></i>
 
-                        {# Ukuran File Kanan Bawah (Absolute) - Selalu Render #}
                         <span class="file-size-absolute">{{ f['size'] }}</span>
 
-                        {# Kontainer Teks List View (Diperlukan untuk List View) #}
+                        {# Kontainer Teks List View (Baru) #}
                         <div class="file-text-container">
                             <span class="file-name">{{ f['name'] }}</span>
                             <span class="file-size">{{ f['size'] }}</span>
@@ -193,15 +194,14 @@
                 {% else %}
                     <div class="file-item file-file">
 
-                        {# Nama File Kiri Atas (Absolute) - Selalu Render #}
+                        {# Teks Absolute Grid View (Sembunyi di CSS) #}
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
                         
                         <i class="fas {{ icon_class }} fa-fw"></i>
 
-                        {# Ukuran File Kanan Bawah (Absolute) - Selalu Render #}
                         <span class="file-size-absolute">{{ f['size'] }}</span>
 
-                        {# Kontainer Teks List View (Diperlukan untuk List View) #}
+                        {# Kontainer Teks List View (Baru) #}
                         <div class="file-text-container">
                             <span class="file-name">{{ f['name'] }}</span>
                             <span class="file-size">{{ f['size'] }}</span>
