@@ -7,7 +7,7 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
     <style>
-        /* --- CSS Umum (Tidak Berubah) --- */
+        /* --- CSS Umum --- */
         body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
         .container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 0; padding-bottom: 60px; }
         a { text-decoration: none; color: inherit; }
@@ -26,7 +26,7 @@
         .file-size { font-size: 0.8em; color: #6c757d; order: 2; }
 
 
-        /* --- GRID VIEW STYLES --- */
+        /* --- GRID VIEW STYLES BARU --- */
         .file-list.grid-view {
             display: grid; 
             gap: 10px; 
@@ -34,32 +34,65 @@
         }
 
         .file-list.grid-view .file-item {
-            flex-direction: column;
+            /* PENTING: Membuat kotak 1:1 (Persegi) */
+            height: 0; /* Tinggi awal 0 */
+            padding-bottom: 100%; /* Tinggi dihitung 100% dari lebar (aspect ratio 1:1) */
             
-            /* PENTING: Penengahan Mutlak (Horizontal & Vertikal) */
+            position: relative; /* Wajib untuk posisi absolute anak-anaknya */
+            
+            /* Penengahan Ikon (Mutlak) */
+            display: flex; /* Aktifkan flexbox lagi */
+            flex-direction: column;
             justify-content: center; /* PUSAT VERTIKAL */
             align-items: center;     /* PUSAT HORIZONTAL */
             
             text-align: center;      
             border: 1px solid #ddd;
             border-radius: 8px;
-            padding: 15px 5px;
-            height: 100px;
-            overflow: hidden;
-        }
-
-        /* Ikon Diperbesar dan Dijamin Center */
-        .file-list.grid-view .file-item i {
-            font-size: 3.0em; /* DIBESARKAN LAGI untuk visualisasi center yang lebih jelas */
-            margin: 0; /* Menghilangkan semua margin bawaan */
-            padding: 0;
-            /* margin-bottom DIHAPUS karena tidak ada teks di bawahnya */
+            overflow: hidden; /* Tambahkan kembali jika file_name/size mengganggu */
         }
         
-        /* Hapus pengaruh Text Container di GRID VIEW (opsional, karena HTML sudah diubah) */
-        .file-list.grid-view .file-text-container {
-            display: none; /* Menyembunyikan text container jika masih ada dari HTML */
+        /* Ikon Diperbesar dan Dijamin Center */
+        .file-list.grid-view .file-item i {
+            font-size: 3.0em; 
+            margin: 0; 
+            padding: 0;
+            /* Ikon sudah di-center oleh parent .file-item */
         }
+
+        /* [BARU] Pengaturan Posisi Absolute untuk Teks */
+        
+        /* Nama File: Kiri Atas Absolute */
+        .file-list.grid-view .file-name-absolute {
+            position: absolute;
+            top: 5px; /* Jarak dari atas */
+            left: 5px; /* Jarak dari kiri */
+            max-width: 90%; /* Tetap terpotong jika terlalu panjang */
+            font-size: 0.7em;
+            color: #495057;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 2px 4px;
+            background-color: rgba(255, 255, 255, 0.7); /* Latar belakang semi-transparan agar terbaca */
+            border-radius: 3px;
+            font-weight: bold;
+            z-index: 5;
+        }
+
+        /* Ukuran File: Kanan Bawah Absolute */
+        .file-list.grid-view .file-size-absolute {
+            position: absolute;
+            bottom: 5px; /* Jarak dari bawah */
+            right: 5px; /* Jarak dari kanan */
+            font-size: 0.7em;
+            color: #6c757d;
+            padding: 2px 4px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            z-index: 5;
+        }
+
 
         /* Responsive Grid */
         @media (max-width: 600px) {
@@ -106,30 +139,33 @@
 
                 {% set icon_class = "fa-folder" if f['is_dir'] else "fa-file-alt" %}
                 
-                {# Menggunakan Variabel Jinja2 untuk memeriksa mode tampilan #}
-                {% set is_grid_view = 'grid' in request.cookies.get('viewMode', 'list') %}
+                {# TIDAK PERLU KONDISI JINJA2, KARENA TEKS HANYA DIBUTUHKAN DI GRID VIEW #}
 
                 {% if f['is_dir'] %}
                     <a href="/?path={{ target_path }}" class="file-item file-folder">
+                        
+                        {# [BARU] Nama File Kiri Atas (Absolute) #}
+                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
+                        
                         <i class="fas {{ icon_class }} fa-fw"></i>
-                        {# TAMPILKAN TEKS HANYA JIKA BUKAN GRID VIEW (TESTING) #}
-                        {% if not is_grid_view %}
-                            <div class="file-text-container">
-                                <span class="file-name">{{ f['name'] }}</span>
-                                <span class="file-size">{{ f['size'] }}</span>
-                            </div>
-                        {% endif %}
+
+                        {# [BARU] Ukuran File Kanan Bawah (Absolute) #}
+                        <span class="file-size-absolute">{{ f['size'] }}</span>
+
+                        {# Hapus file-text-container lama #}
                     </a>
                 {% else %}
                     <div class="file-item file-file">
+
+                        {# [BARU] Nama File Kiri Atas (Absolute) #}
+                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
+                        
                         <i class="fas {{ icon_class }} fa-fw"></i>
-                        {# TAMPILKAN TEKS HANYA JIKA BUKAN GRID VIEW (TESTING) #}
-                        {% if not is_grid_view %}
-                            <div class="file-text-container">
-                                <span class="file-name">{{ f['name'] }}</span>
-                                <span class="file-size">{{ f['size'] }}</span>
-                            </div>
-                        {% endif %}
+
+                        {# [BARU] Ukuran File Kanan Bawah (Absolute) #}
+                        <span class="file-size-absolute">{{ f['size'] }}</span>
+
+                        {# Hapus file-text-container lama #}
                     </div>
                 {% endif %}
             {% endfor %}
@@ -151,7 +187,6 @@
             const backButton = document.getElementById('back-button');
 
             // --- 1. Fungsi Toggle Grid ---
-            // Mengambil status view mode dari sessionStorage atau default ke 'list'
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
             const setView = (isGrid) => {
@@ -173,12 +208,6 @@
                 e.preventDefault();
                 isGridView = !isGridView;
                 setView(isGridView);
-                
-                // PENTING: Lakukan reload halaman agar konten Jinja2 di server render ulang
-                // dengan mode view yang benar (dengan atau tanpa teks).
-                setTimeout(() => {
-                    window.location.reload(); 
-                }, 50); 
             });
 
             // --- 2. Fungsi Tombol Kembali (history.back) ---
