@@ -78,8 +78,8 @@
         /* CSS untuk Status Terpilih (SELECTED) - LIST VIEW */
         .file-item.selected {
             background-color: #f0ffef; 
-            border-left: 5px solid #28a745; /* Border KIRI HIJAU TEBAL */
-            border-bottom-color: #ccffdd;
+            border-left: 5px solid #28a745; 
+            border-bottom-color: #ccffdd; 
         }
 
         /* --- GRID VIEW STYLES --- */
@@ -93,16 +93,18 @@
             position: relative;
             display: block;
             text-align: center;      
-            border: 1px solid #ddd; /* Border normal Grid */
+            /* [KOREKSI PENTING] Border abu-abu solid */
+            border: 1px solid #ddd;
             border-radius: 8px;
             overflow: hidden; 
+            /* Memastikan transisi border terlihat */
+            transition: border 0.2s, background-color 0.2s;
         }
         
-        /* [KOREKSI UTAMA] CSS untuk Status Terpilih pada Grid View */
+        /* CSS untuk Status Terpilih pada Grid View */
         .file-list.grid-view .file-item.selected {
-            /* Pastikan border 2px solid dan tambahkan outline sebagai fall-back visual */
-            border: 2px solid #28a745 !important; /* !important untuk memastikan override */
-            outline: 2px solid #28a745; /* Tambahkan outline sebagai solid border di luar */
+            /* Override border normal dengan border selection */
+            border: 2px solid #28a745; 
             box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); 
             background-color: #e9fff1;
         }
@@ -275,6 +277,7 @@
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
+                    // Nonaktifkan mode seleksi saat kembali
                     selectionMode = false;
                     document.querySelectorAll('.file-item.selected').forEach(item => item.classList.remove('selected'));
                     window.history.back();
@@ -290,7 +293,7 @@
                 if (isAnchor) {
                     item.addEventListener('click', function(e) {
                         if (selectionMode) {
-                            e.preventDefault();
+                            e.preventDefault(); // Mencegah navigasi jika dalam mode seleksi
                             toggleSelection(item);
                         }
                     });
@@ -314,12 +317,15 @@
                 item.addEventListener('touchcancel', endPress);
 
                 function startPress(e) {
+                    // Pastikan timer bersih sebelum dimulai
                     clearTimeout(pressTimer);
                     
                     if (e.button === 0 || e.touches) {
                         pressTimer = setTimeout(() => {
+                            // Long Press Terdeteksi
                             selectionMode = true; 
                             toggleSelection(item);
+                            // Mencegah navigasi folder setelah long press
                             if (isAnchor) e.preventDefault(); 
                         }, LONG_PRESS_THRESHOLD);
                     }
@@ -328,7 +334,8 @@
                 function endPress(e) {
                     clearTimeout(pressTimer);
                     
-                    if (selectionMode && e.type.includes('up') && isAnchor) {
+                    // Jika long press sudah terjadi, cegah click event (untuk a href)
+                    if (selectionMode && (e.type.includes('up') || e.type.includes('end')) && isAnchor) {
                         e.preventDefault();
                     }
                 }
@@ -338,6 +345,7 @@
             function toggleSelection(item) {
                 item.classList.toggle('selected');
                 
+                // Cek apakah tidak ada item yang terpilih, jika ya, matikan selectionMode
                 const selectedCount = document.querySelectorAll('.file-item.selected').length;
                 if (selectedCount === 0) {
                     selectionMode = false;
