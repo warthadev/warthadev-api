@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<body>
+    <div class="container">
+
+        <div class="info-header">
+            <div class="current-path"><strong>Path:</strong> <code>{{ path }}</code></div>
+
+            <div class="disk-bar-container">
+                <div class="disk-item">
+                    <strong>Colab ({{ format_size(colab_used) }} / {{ format_size(colab_total) }}):</strong>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
+                    </div>
+                </div>
+
+                {% if drive_total > 0 %}
+                <div class="disk-item">
+                    <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div id="file-list" class="file-list">
+            {% for f in files %}
+                {% set target_path = f['full_path'] %}
+                {% if f['is_dir'] and f['full_path'] == drive_mount_path and os_path.exists(os_path.join(drive_mount_path, "MyDrive")) %}
+                    {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
+                {% endif %}
+
+                {% set icon_class = "fa-folder" if f['is_dir'] else "fa-file-alt" %}
+                
+                {% set combined_text %}
+                    <span class="file-name">{{ f['name'] }}</span>
+                    <span class="file-size">{{ f['size'] }}</span>
+                {% endset %}
+
+                {% if f['is_dir'] %}
+                    <a href="/?path={{ target_path }}" class="file-item file-folder">
+                        <i class="fas {{ icon_class }} fa-fw"></i>
+                        <div class="file-text-container">
+                            {{ combined_text }}
+                        </div>
+                    </a>
+                {% else %}
+                    <div class="file-item file-file">
+                        <i class="fas {{ icon_class }} fa-fw"></i>
+                        <div class="file-text-container">
+                            {{ combined_text }}
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+
+        <div class="fixed-footer">
+            {% if path != root_path %}
+            <a href="/?path={{ root_path }}" class="nav-icon">
+                <i class="fas fa-home"></i>
+                <span>Home</span>
+            </a>
+            {% endif %}
+            {% if path != root_path %}
+            <a href="#" id="back-button" class="nav-icon">
+                <i class="fas fa-arrow-left"></i>
+                <span>Kembali</span>
+            </a>
+            {% endif %}
+        </div>
+    </div>
+    </body>
+</html>
