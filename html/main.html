@@ -27,7 +27,7 @@
             border-bottom: 1px solid #eee; 
             transition: background-color 0.2s; 
             cursor: default; 
-            position: relative; /* Diperlukan untuk LIST VIEW juga, agar teks absolute tidak "bocor" */
+            position: relative;
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
         .file-text-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
@@ -40,19 +40,23 @@
         }
 
         /* --- GRID VIEW STYLES BARU --- */
+        .file-list.grid-view {
+            display: grid; 
+            gap: 10px; 
+            padding: 10px;
+            /* Responsive akan diatur di media queries */
+        }
+
         .file-list.grid-view .file-item {
             /* PENTING: Membuat kotak 1:1 (Persegi) */
             height: 0; 
             padding-bottom: 100%; 
             padding-top: 0; /* Override padding top/bottom dari list view */
             
-            position: relative; 
+            position: relative; /* Wajib untuk posisi absolute anak-anaknya */
             
-            /* Penengahan Ikon (Mutlak) */
-            display: flex;
-            flex-direction: column;
-            justify-content: center; /* PUSAT VERTIKAL */
-            align-items: center;     /* PUSAT HORIZONTAL */
+            /* Hapus display: flex yang mengganggu centering ikon */
+            display: block; 
             
             text-align: center;      
             border: 1px solid #ddd;
@@ -61,19 +65,21 @@
         }
         
         /* [PENTING] Sembunyikan Teks List View di Grid View */
-        .file-list.grid-view .file-text-container,
-        .file-list.grid-view .file-item i {
-            margin-right: 0; /* Hapus margin right pada ikon di grid */
-        }
         .file-list.grid-view .file-text-container {
             display: none; 
         }
 
-        /* Ikon Diperbesar dan Dijamin Center */
+        /* Ikon Diperbesar dan Dijamin CENTER ABSOLUTE MUTLAK */
         .file-list.grid-view .file-item i {
             font-size: 3.0em; 
             margin: 0; 
             padding: 0;
+            
+            /* Teknik Absolute Centering */
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%); /* Geser kembali setengah lebar dan tinggi ikon */
         }
 
         /* [AKTIFKAN] Posisi Absolute untuk Teks di Grid View */
@@ -84,7 +90,7 @@
             position: absolute;
             top: 5px; 
             left: 5px; 
-            max-width: 90%; 
+            max-width: 85%; /* Sedikit lebih kecil agar tidak menempel ke batas kanan */
             font-size: 0.7em;
             color: #495057;
             white-space: nowrap;
@@ -112,13 +118,23 @@
         }
 
 
-        /* Responsive Grid */
+        /* --- RESPONSIVE MEDIA QUERIES --- */
+        
+        /* Mobile: 2 Kolom */
         @media (max-width: 600px) {
-            .file-list.grid-view { grid-template-columns: repeat(2, 1fr); }
+            .file-list.grid-view { 
+                grid-template-columns: repeat(2, 1fr); 
+            }
         }
+
+        /* Desktop/Tablet Besar: 4 Kolom */
         @media (min-width: 601px) {
-            .file-list.grid-view { grid-template-columns: repeat(4, 1fr); }
+            .file-list.grid-view { 
+                grid-template-columns: repeat(4, 1fr); 
+            }
         }
+        /* --- CSS responsif yang jelas di atas ini --- */
+
 
         /* FIXED FOOTER (NAVBAR) */
         .fixed-footer { position: fixed; bottom: 0; width: 100%; max-width: 800px; background-color: #212529; color: white; box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; display: flex; justify-content: space-around; align-items: center; height: 55px; }
