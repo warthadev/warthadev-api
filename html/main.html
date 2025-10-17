@@ -92,20 +92,26 @@
         }
         .file-list.grid-view .file-item {
             flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            text-align: center;
+            
+            /* PENTING: Menjamin rata tengah vertikal dan horizontal */
+            justify-content: center; /* Rata Tengah Vertikal */
+            align-items: center;     /* Rata Tengah Horizontal */
+            
+            text-align: center;      /* Menengahkan teks */
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 15px 5px;
-            height: 100px;
+            height: 100px; /* Tinggi kotak grid */
             overflow: hidden;
         }
+        
+        /* PENTING: Perbesar Ikon dan Atur Margin */
         .file-list.grid-view .file-item i {
-            font-size: 2em; 
+            font-size: 2.5em; /* ICON DIBESARKAN (sebelumnya 2em) */
             margin-right: 0;
-            margin-bottom: 5px;
+            margin-bottom: 8px; /* Memberi jarak antara ikon dan teks */
         }
+        
         .file-list.grid-view .file-text-container {
             align-items: center; 
             flex-direction: column;
@@ -116,8 +122,9 @@
             font-size: 0.8em;
             white-space: nowrap;
             overflow: hidden;
-            text-overflow: ellipsis;
-            max-width: 90%;
+            text-overflow: ellipsis; 
+            max-width: 90%; 
+            /* Catatan: max-width 90% tetap dipertahankan untuk pemotongan yang lebih rapi */
         }
         .file-list.grid-view .file-size {
             font-size: 0.7em;
