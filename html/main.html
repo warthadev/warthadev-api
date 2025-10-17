@@ -30,20 +30,17 @@
         }
         .disk-item {
             flex-grow: 1; 
-            background-color: #f8f8f8; 
-            border: 1px solid #eee;
+            background-color: #e9ecef;
             border-radius: 4px;
             padding: 8px 10px;
         }
         
-        /* Styling Path Diperjelas */
         .current-path { 
             background-color: #f8f8f8; 
             padding: 8px 15px; 
             border-radius: 4px; 
             font-size: 0.9em; 
             word-wrap: break-word; 
-            border: none;
         }
 
         .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
@@ -59,31 +56,44 @@
             align-items: center; 
             padding: 10px 15px; 
             border-bottom: 1px solid #eee; 
-            transition: background-color 0.2s, border-color 0.2s; 
+            transition: background-color 0.2s; 
             cursor: default; 
             position: relative;
-            user-select: none;
-            border-left: none !important;
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
         
         /* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal */
-        .file-text-container { flex: 1; overflow: hidden; display: block; }
-        .file-name { white-space: normal; word-break: break-all; font-weight: 500; display: inline-block; margin-right: 15px; max-width: calc(100% - 100px); }
-        .file-size { font-size: 0.8em; color: #6c757d; float: right; }
+        .file-text-container { 
+            flex: 1; 
+            overflow: hidden; 
+            display: block; 
+        }
+        
+        .file-name { 
+            white-space: normal; 
+            word-break: break-all; 
+            font-weight: 500; 
+            display: inline-block; 
+            margin-right: 15px; 
+            max-width: calc(100% - 100px); 
+        }
+        .file-size { 
+            font-size: 0.8em; 
+            color: #6c757d; 
+            float: right; 
+        }
         
         /* Sembunyikan Teks Absolute di List View */
-        .file-name-absolute, .file-size-absolute { display: none; }
-        
-        /* CSS untuk Status Terpilih (SELECTED) - LIST VIEW */
-        .file-item.selected {
-            background-color: #f0ffef; 
-            border-left: 5px solid #28a745; 
-            border-bottom-color: #ccffdd; 
+        .file-name-absolute, .file-size-absolute {
+            display: none;
         }
 
         /* --- GRID VIEW STYLES --- */
-        .file-list.grid-view { display: grid; gap: 10px; padding: 10px; }
+        .file-list.grid-view {
+            display: grid; 
+            gap: 10px; 
+            padding: 10px;
+        }
 
         .file-list.grid-view .file-item {
             /* Kotak Persegi (1:1) */
@@ -93,24 +103,15 @@
             position: relative;
             display: block;
             text-align: center;      
-            /* [KOREKSI PENTING] Border abu-abu solid */
             border: 1px solid #ddd;
             border-radius: 8px;
             overflow: hidden; 
-            /* Memastikan transisi border terlihat */
-            transition: border 0.2s, background-color 0.2s;
-        }
-        
-        /* CSS untuk Status Terpilih pada Grid View */
-        .file-list.grid-view .file-item.selected {
-            /* Override border normal dengan border selection */
-            border: 2px solid #28a745; 
-            box-shadow: 0 0 5px rgba(40, 167, 69, 0.5); 
-            background-color: #e9fff1;
         }
         
         /* Sembunyikan Teks List View di Grid View */
-        .file-list.grid-view .file-text-container { display: none; }
+        .file-list.grid-view .file-text-container {
+            display: none; 
+        }
 
         /* Ikon CENTER ABSOLUTE MUTLAK */
         .file-list.grid-view .file-item i {
@@ -124,22 +125,68 @@
         }
 
         /* Teks Absolute di Grid View */
-        .file-list.grid-view .file-name-absolute { display: block; position: absolute; top: 5px; left: 5px; max-width: 85%; font-size: 0.7em; color: #495057; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 2px 4px; background-color: rgba(255, 255, 255, 0.7); border-radius: 3px; font-weight: bold; z-index: 5; }
-        .file-list.grid-view .file-size-absolute { display: block; position: absolute; bottom: 5px; right: 5px; font-size: 0.7em; color: #6c757d; padding: 2px 4px; background-color: rgba(255, 255, 255, 0.7); border-radius: 3px; z-index: 5; }
+        .file-list.grid-view .file-name-absolute {
+            display: block;
+            position: absolute;
+            top: 5px; left: 5px; 
+            max-width: 85%; 
+            font-size: 0.7em;
+            color: #495057;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            padding: 2px 4px;
+            background-color: rgba(255, 255, 255, 0.7); 
+            border-radius: 3px;
+            font-weight: bold;
+            z-index: 5;
+        }
+
+        .file-list.grid-view .file-size-absolute {
+            display: block;
+            position: absolute;
+            bottom: 5px; right: 5px; 
+            font-size: 0.7em;
+            color: #6c757d;
+            padding: 2px 4px;
+            background-color: rgba(255, 255, 255, 0.7);
+            border-radius: 3px;
+            z-index: 5;
+        }
 
 
         /* --- RESPONSIVE MEDIA QUERIES --- */
+        
+        /* Mobile: 2 Kolom Grid dan Disk Bar Vertikal */
         @media (max-width: 600px) {
-            .file-list.grid-view { grid-template-columns: repeat(2, 1fr); }
-            .disk-bar-wrapper { flex-direction: column; }
-        }
-        @media (min-width: 601px) {
-            .file-list.grid-view { grid-template-columns: repeat(4, 1fr); }
+            .file-list.grid-view { 
+                grid-template-columns: repeat(2, 1fr); 
+            }
+            .disk-bar-wrapper {
+                flex-direction: column;
+            }
         }
 
+        /* Desktop/Tablet Besar: 4 Kolom Grid */
+        @media (min-width: 601px) {
+            .file-list.grid-view { 
+                grid-template-columns: repeat(4, 1fr); 
+            }
+        }
+
+
         /* FIXED FOOTER (NAVBAR) */
-        .fixed-footer { position: fixed; bottom: 0; width: 100%; max-width: 800px; background-color: #212529; color: white; box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; display: flex; justify-content: space-around; align-items: center; height: 55px; }
-        .nav-icon { display: flex; flex-direction: column; align-items: center; padding: 5px; color: #ced4da; transition: color 0.2s; }
+        .fixed-footer { 
+            position: fixed; bottom: 0; width: 100%; max-width: 800px; 
+            background-color: #212529; color: white; 
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; 
+            display: flex; justify-content: space-around; align-items: center; 
+            height: 55px;
+        }
+        .nav-icon { 
+            display: flex; flex-direction: column; align-items: center; 
+            padding: 5px; color: #ced4da; transition: color 0.2s;
+        }
         .nav-icon i { font-size: 1.2em; }
         .nav-icon span { font-size: 0.7em; margin-top: 3px; }
         .nav-icon:hover { color: #ffffff; }
@@ -234,6 +281,8 @@
                 <span>Kembali</span>
             </a>
             {% endif %}
+            
+            {# Tombol Upload dan Download Dihapus dari sini #}
         </div>
     </div>
 
@@ -243,13 +292,8 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
-            const fileItems = document.querySelectorAll('.file-item');
 
-            let selectionMode = false;
-            let pressTimer;
-            const LONG_PRESS_THRESHOLD = 500; // 500ms untuk Long Press
-
-            // --- 1. Fungsi Toggle Grid (Tidak Berubah) ---
+            // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
             const setView = (isGrid) => {
@@ -273,83 +317,12 @@
                 setView(isGridView);
             });
 
-            // --- 2. Fungsi Tombol Kembali (Tidak Berubah) ---
+            // --- 2. Fungsi Tombol Kembali (history.back) ---
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
-                    // Nonaktifkan mode seleksi saat kembali
-                    selectionMode = false;
-                    document.querySelectorAll('.file-item.selected').forEach(item => item.classList.remove('selected'));
                     window.history.back();
                 });
-            }
-
-            // --- 3. Logika Long Press dan Seleksi ---
-            
-            fileItems.forEach(item => {
-                const isAnchor = item.tagName === 'A';
-                
-                // Mencegah navigasi default pada folder
-                if (isAnchor) {
-                    item.addEventListener('click', function(e) {
-                        if (selectionMode) {
-                            e.preventDefault(); // Mencegah navigasi jika dalam mode seleksi
-                            toggleSelection(item);
-                        }
-                    });
-                } else {
-                    // Mencegah event lain pada file (div)
-                    item.addEventListener('click', function(e) {
-                        if (selectionMode) {
-                            toggleSelection(item);
-                        }
-                    });
-                }
-
-                // EVENT: Mouse Down (atau Touch Start)
-                item.addEventListener('mousedown', startPress);
-                item.addEventListener('touchstart', startPress);
-                
-                // EVENT: Mouse Up, Mouse Leave, Touch End
-                item.addEventListener('mouseup', endPress);
-                item.addEventListener('mouseleave', endPress);
-                item.addEventListener('touchend', endPress);
-                item.addEventListener('touchcancel', endPress);
-
-                function startPress(e) {
-                    // Pastikan timer bersih sebelum dimulai
-                    clearTimeout(pressTimer);
-                    
-                    if (e.button === 0 || e.touches) {
-                        pressTimer = setTimeout(() => {
-                            // Long Press Terdeteksi
-                            selectionMode = true; 
-                            toggleSelection(item);
-                            // Mencegah navigasi folder setelah long press
-                            if (isAnchor) e.preventDefault(); 
-                        }, LONG_PRESS_THRESHOLD);
-                    }
-                }
-
-                function endPress(e) {
-                    clearTimeout(pressTimer);
-                    
-                    // Jika long press sudah terjadi, cegah click event (untuk a href)
-                    if (selectionMode && (e.type.includes('up') || e.type.includes('end')) && isAnchor) {
-                        e.preventDefault();
-                    }
-                }
-                
-            });
-
-            function toggleSelection(item) {
-                item.classList.toggle('selected');
-                
-                // Cek apakah tidak ada item yang terpilih, jika ya, matikan selectionMode
-                const selectedCount = document.querySelectorAll('.file-item.selected').length;
-                if (selectedCount === 0) {
-                    selectionMode = false;
-                }
             }
         });
     </script>
