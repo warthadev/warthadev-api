@@ -7,177 +7,74 @@
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     
     <style>
-        /* --- SELURUH KODE CSS DIMULAI DI SINI --- */
+        /* --- CSS Umum (Tidak Berubah) --- */
         body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
         .container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 0; padding-bottom: 60px; }
         a { text-decoration: none; color: inherit; }
+        .info-header { padding: 15px 20px; border-bottom: 1px solid #eee; }
+        .current-path { background-color: #f8f8f8; padding: 8px 15px; border-radius: 4px; margin-top: 5px; font-size: 0.9em; word-wrap: break-word; }
+        .disk-bar-container { margin-top: 10px; font-size: 0.8em; }
+        .progress-bar { width: 100%; background-color: #e9ecef; border-radius: 5px; overflow: hidden; }
+        .progress { height: 10px; border-radius: 5px; background-color: #007bff; transition: width 0.4s; }
+        .file-list { padding: 20px; padding-top: 5px; display: block; }
+        
+        /* FILE ITEM (LIST VIEW - Tidak Berubah) */
+        .file-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 15px; border-bottom: 1px solid #eee; transition: background-color 0.2s; cursor: default; }
+        .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
+        .file-text-container { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+        .file-name { white-space: normal; word-break: break-all; font-weight: 500; order: 1; }
+        .file-size { font-size: 0.8em; color: #6c757d; order: 2; }
 
-        /* HEADER INFORMASI */
-        .info-header {
-            padding: 15px 20px;
-            border-bottom: 1px solid #eee;
-        }
-        .current-path {
-            background-color: #f8f8f8;
-            padding: 8px 15px;
-            border-radius: 4px;
-            margin-top: 5px;
-            font-size: 0.9em;
-            word-wrap: break-word;
-        }
-
-        /* Disk Usage Bar */
-        .disk-bar-container {
-            margin-top: 10px;
-            font-size: 0.8em;
-        }
-        .progress-bar {
-            width: 100%;
-            background-color: #e9ecef;
-            border-radius: 5px;
-            overflow: hidden;
-        }
-        .progress {
-            height: 10px;
-            border-radius: 5px;
-            background-color: #007bff;
-            transition: width 0.4s;
-        }
-
-        /* FILE LIST */
-        .file-list {
-            padding: 20px;
-            padding-top: 5px;
-            display: block;
-        }
-
-        /* FILE ITEM (LIST VIEW) */
-        .file-item {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 10px 15px;
-            border-bottom: 1px solid #eee;
-            transition: background-color 0.2s;
-            cursor: default;
-        }
-        .file-item i {
-            margin-right: 15px;
-            color: #555;
-            font-size: 1.5em; 
-        }
-        .file-text-container {
-            flex: 1; 
-            overflow: hidden;
-            display: flex;
-            flex-direction: column; 
-        }
-        .file-name {
-            white-space: normal;
-            word-break: break-all;
-            font-weight: 500;
-            order: 1; 
-        }
-        .file-size {
-            font-size: 0.8em;
-            color: #6c757d;
-            order: 2; 
-        }
 
         /* --- GRID VIEW STYLES --- */
         .file-list.grid-view {
-            display: grid;
-            gap: 10px;
+            display: grid; 
+            gap: 10px; 
             padding: 10px;
         }
+
         .file-list.grid-view .file-item {
             flex-direction: column;
             
-            /* PENTING: Menjamin rata tengah vertikal dan horizontal */
-            justify-content: center; /* Rata Tengah Vertikal */
-            align-items: center;     /* Rata Tengah Horizontal */
+            /* PENTING: Penengahan Mutlak (Horizontal & Vertikal) */
+            justify-content: center; /* PUSAT VERTIKAL */
+            align-items: center;     /* PUSAT HORIZONTAL */
             
-            text-align: center;      /* Menengahkan teks */
+            text-align: center;      
             border: 1px solid #ddd;
             border-radius: 8px;
             padding: 15px 5px;
-            height: 100px; /* Tinggi kotak grid */
+            height: 100px;
             overflow: hidden;
         }
-        
-        /* PENTING: Perbesar Ikon dan Atur Margin */
+
+        /* Ikon Diperbesar dan Dijamin Center */
         .file-list.grid-view .file-item i {
-            font-size: 2.5em; /* ICON DIBESARKAN (sebelumnya 2em) */
-            margin-right: 0;
-            margin-bottom: 8px; /* Memberi jarak antara ikon dan teks */
+            font-size: 3.0em; /* DIBESARKAN LAGI untuk visualisasi center yang lebih jelas */
+            margin: 0; /* Menghilangkan semua margin bawaan */
+            padding: 0;
+            /* margin-bottom DIHAPUS karena tidak ada teks di bawahnya */
         }
         
+        /* Hapus pengaruh Text Container di GRID VIEW (opsional, karena HTML sudah diubah) */
         .file-list.grid-view .file-text-container {
-            align-items: center; 
-            flex-direction: column;
-            width: 100%;
-            overflow: hidden;
-        }
-        .file-list.grid-view .file-name {
-            font-size: 0.8em;
-            white-space: nowrap;
-            overflow: hidden;
-            text-overflow: ellipsis; 
-            max-width: 90%; 
-            /* Catatan: max-width 90% tetap dipertahankan untuk pemotongan yang lebih rapi */
-        }
-        .file-list.grid-view .file-size {
-            font-size: 0.7em;
-            margin-top: 3px;
+            display: none; /* Menyembunyikan text container jika masih ada dari HTML */
         }
 
-        /* Responsive Grid (Mobile: 2 columns) */
+        /* Responsive Grid */
         @media (max-width: 600px) {
-            .file-list.grid-view {
-                grid-template-columns: repeat(2, 1fr);
-            }
+            .file-list.grid-view { grid-template-columns: repeat(2, 1fr); }
         }
-
-        /* Responsive Grid (Desktop: 4 columns) */
         @media (min-width: 601px) {
-            .file-list.grid-view {
-                grid-template-columns: repeat(4, 1fr);
-            }
+            .file-list.grid-view { grid-template-columns: repeat(4, 1fr); }
         }
 
         /* FIXED FOOTER (NAVBAR) */
-        .fixed-footer {
-            position: fixed;
-            bottom: 0;
-            width: 100%;
-            max-width: 800px;
-            background-color: #212529;
-            color: white;
-            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
-            z-index: 100;
-            display: flex;
-            justify-content: space-around;
-            align-items: center;
-            height: 55px;
-        }
-        .nav-icon {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            padding: 5px;
-            color: #ced4da;
-            transition: color 0.2s;
-        }
-        .nav-icon i {
-            font-size: 1.2em;
-        }
-        .nav-icon span {
-            font-size: 0.7em;
-            margin-top: 3px;
-        }
-        .nav-icon:hover {
-            color: #ffffff;
-        }
+        .fixed-footer { position: fixed; bottom: 0; width: 100%; max-width: 800px; background-color: #212529; color: white; box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; display: flex; justify-content: space-around; align-items: center; height: 55px; }
+        .nav-icon { display: flex; flex-direction: column; align-items: center; padding: 5px; color: #ced4da; transition: color 0.2s; }
+        .nav-icon i { font-size: 1.2em; }
+        .nav-icon span { font-size: 0.7em; margin-top: 3px; }
+        .nav-icon:hover { color: #ffffff; }
         /* --- SELURUH KODE CSS BERAKHIR DI SINI --- */
     </style>
 </head>
@@ -186,21 +83,15 @@
 
         <div class="info-header">
             <div class="current-path"><strong>Path:</strong> <code>{{ path }}</code></div>
-
             <div class="disk-bar-container">
                 <div class="disk-item">
                     <strong>Colab ({{ format_size(colab_used) }} / {{ format_size(colab_total) }}):</strong>
-                    <div class="progress-bar">
-                        <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
-                    </div>
+                    <div class="progress-bar"><div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div></div>
                 </div>
-
                 {% if drive_total > 0 %}
                 <div class="disk-item">
                     <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
-                    <div class="progress-bar">
-                        <div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div>
-                    </div>
+                    <div class="progress-bar"><div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div></div>
                 </div>
                 {% endif %}
             </div>
@@ -215,54 +106,40 @@
 
                 {% set icon_class = "fa-folder" if f['is_dir'] else "fa-file-alt" %}
                 
-                {% set combined_text %}
-                    <span class="file-name">{{ f['name'] }}</span>
-                    <span class="file-size">{{ f['size'] }}</span>
-                {% endset %}
+                {# Menggunakan Variabel Jinja2 untuk memeriksa mode tampilan #}
+                {% set is_grid_view = 'grid' in request.cookies.get('viewMode', 'list') %}
 
                 {% if f['is_dir'] %}
                     <a href="/?path={{ target_path }}" class="file-item file-folder">
                         <i class="fas {{ icon_class }} fa-fw"></i>
-                        <div class="file-text-container">
-                            {{ combined_text }}
-                        </div>
+                        {# TAMPILKAN TEKS HANYA JIKA BUKAN GRID VIEW (TESTING) #}
+                        {% if not is_grid_view %}
+                            <div class="file-text-container">
+                                <span class="file-name">{{ f['name'] }}</span>
+                                <span class="file-size">{{ f['size'] }}</span>
+                            </div>
+                        {% endif %}
                     </a>
                 {% else %}
                     <div class="file-item file-file">
                         <i class="fas {{ icon_class }} fa-fw"></i>
-                        <div class="file-text-container">
-                            {{ combined_text }}
-                        </div>
+                        {# TAMPILKAN TEKS HANYA JIKA BUKAN GRID VIEW (TESTING) #}
+                        {% if not is_grid_view %}
+                            <div class="file-text-container">
+                                <span class="file-name">{{ f['name'] }}</span>
+                                <span class="file-size">{{ f['size'] }}</span>
+                            </div>
+                        {% endif %}
                     </div>
                 {% endif %}
             {% endfor %}
         </div>
 
         <div class="fixed-footer">
-
-            <a href="#" class="nav-icon">
-                <i class="fas fa-bars"></i>
-                <span>Menu</span>
-            </a>
-
-            <a href="#" id="grid-toggle" class="nav-icon">
-                <i class="fas fa-th-large"></i>
-                <span id="view-label">Grid</span>
-            </a>
-
-            {% if path != root_path %}
-            <a href="/?path={{ root_path }}" class="nav-icon">
-                <i class="fas fa-home"></i>
-                <span>Home</span>
-            </a>
-            {% endif %}
-
-            {% if path != root_path %}
-            <a href="#" id="back-button" class="nav-icon">
-                <i class="fas fa-arrow-left"></i>
-                <span>Kembali</span>
-            </a>
-            {% endif %}
+            <a href="#" class="nav-icon"><i class="fas fa-bars"></i><span>Menu</span></a>
+            <a href="#" id="grid-toggle" class="nav-icon"><i class="fas fa-th-large"></i><span id="view-label">Grid</span></a>
+            {% if path != root_path %}<a href="/?path={{ root_path }}" class="nav-icon"><i class="fas fa-home"></i><span>Home</span></a>{% endif %}
+            {% if path != root_path %}<a href="#" id="back-button" class="nav-icon"><i class="fas fa-arrow-left"></i><span>Kembali</span></a>{% endif %}
         </div>
     </div>
 
@@ -274,7 +151,9 @@
             const backButton = document.getElementById('back-button');
 
             // --- 1. Fungsi Toggle Grid ---
+            // Mengambil status view mode dari sessionStorage atau default ke 'list'
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
+            
             const setView = (isGrid) => {
                 if (isGrid) {
                     fileList.classList.add('grid-view');
@@ -294,6 +173,12 @@
                 e.preventDefault();
                 isGridView = !isGridView;
                 setView(isGridView);
+                
+                // PENTING: Lakukan reload halaman agar konten Jinja2 di server render ulang
+                // dengan mode view yang benar (dengan atau tanpa teks).
+                setTimeout(() => {
+                    window.location.reload(); 
+                }, 50); 
             });
 
             // --- 2. Fungsi Tombol Kembali (history.back) ---
