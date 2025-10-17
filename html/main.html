@@ -1,5 +1,179 @@
 <!DOCTYPE html>
 <html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colab FS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        /* --- SELURUH KODE CSS DIMULAI DI SINI --- */
+        body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 0; padding-bottom: 60px; }
+        a { text-decoration: none; color: inherit; }
+
+        /* HEADER INFORMASI */
+        .info-header {
+            padding: 15px 20px;
+            border-bottom: 1px solid #eee;
+        }
+        .current-path {
+            background-color: #f8f8f8;
+            padding: 8px 15px;
+            border-radius: 4px;
+            margin-top: 5px;
+            font-size: 0.9em;
+            word-wrap: break-word;
+        }
+
+        /* Disk Usage Bar */
+        .disk-bar-container {
+            margin-top: 10px;
+            font-size: 0.8em;
+        }
+        .progress-bar {
+            width: 100%;
+            background-color: #e9ecef;
+            border-radius: 5px;
+            overflow: hidden;
+        }
+        .progress {
+            height: 10px;
+            border-radius: 5px;
+            background-color: #007bff;
+            transition: width 0.4s;
+        }
+
+        /* FILE LIST */
+        .file-list {
+            padding: 20px;
+            padding-top: 5px;
+            display: block;
+        }
+
+        /* FILE ITEM (LIST VIEW) */
+        .file-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 10px 15px;
+            border-bottom: 1px solid #eee;
+            transition: background-color 0.2s;
+            cursor: default;
+        }
+        .file-item i {
+            margin-right: 15px;
+            color: #555;
+            font-size: 1.5em; 
+        }
+        .file-text-container {
+            flex: 1; 
+            overflow: hidden;
+            display: flex;
+            flex-direction: column; 
+        }
+        .file-name {
+            white-space: normal;
+            word-break: break-all;
+            font-weight: 500;
+            order: 1; 
+        }
+        .file-size {
+            font-size: 0.8em;
+            color: #6c757d;
+            order: 2; 
+        }
+
+        /* --- GRID VIEW STYLES --- */
+        .file-list.grid-view {
+            display: grid;
+            gap: 10px;
+            padding: 10px;
+        }
+        .file-list.grid-view .file-item {
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            padding: 15px 5px;
+            height: 100px;
+            overflow: hidden;
+        }
+        .file-list.grid-view .file-item i {
+            font-size: 2em; 
+            margin-right: 0;
+            margin-bottom: 5px;
+        }
+        .file-list.grid-view .file-text-container {
+            align-items: center; 
+            flex-direction: column;
+            width: 100%;
+            overflow: hidden;
+        }
+        .file-list.grid-view .file-name {
+            font-size: 0.8em;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            max-width: 90%;
+        }
+        .file-list.grid-view .file-size {
+            font-size: 0.7em;
+            margin-top: 3px;
+        }
+
+        /* Responsive Grid (Mobile: 2 columns) */
+        @media (max-width: 600px) {
+            .file-list.grid-view {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* Responsive Grid (Desktop: 4 columns) */
+        @media (min-width: 601px) {
+            .file-list.grid-view {
+                grid-template-columns: repeat(4, 1fr);
+            }
+        }
+
+        /* FIXED FOOTER (NAVBAR) */
+        .fixed-footer {
+            position: fixed;
+            bottom: 0;
+            width: 100%;
+            max-width: 800px;
+            background-color: #212529;
+            color: white;
+            box-shadow: 0 -2px 4px rgba(0,0,0,0.1);
+            z-index: 100;
+            display: flex;
+            justify-content: space-around;
+            align-items: center;
+            height: 55px;
+        }
+        .nav-icon {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 5px;
+            color: #ced4da;
+            transition: color 0.2s;
+        }
+        .nav-icon i {
+            font-size: 1.2em;
+        }
+        .nav-icon span {
+            font-size: 0.7em;
+            margin-top: 3px;
+        }
+        .nav-icon:hover {
+            color: #ffffff;
+        }
+        /* --- SELURUH KODE CSS BERAKHIR DI SINI --- */
+    </style>
+</head>
 <body>
     <div class="container">
 
@@ -58,12 +232,24 @@
         </div>
 
         <div class="fixed-footer">
+
+            <a href="#" class="nav-icon">
+                <i class="fas fa-bars"></i>
+                <span>Menu</span>
+            </a>
+
+            <a href="#" id="grid-toggle" class="nav-icon">
+                <i class="fas fa-th-large"></i>
+                <span id="view-label">Grid</span>
+            </a>
+
             {% if path != root_path %}
             <a href="/?path={{ root_path }}" class="nav-icon">
                 <i class="fas fa-home"></i>
                 <span>Home</span>
             </a>
             {% endif %}
+
             {% if path != root_path %}
             <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
@@ -72,5 +258,46 @@
             {% endif %}
         </div>
     </div>
-    </body>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileList = document.getElementById('file-list');
+            const gridToggle = document.getElementById('grid-toggle');
+            const viewLabel = document.getElementById('view-label');
+            const backButton = document.getElementById('back-button');
+
+            // --- 1. Fungsi Toggle Grid ---
+            let isGridView = sessionStorage.getItem('viewMode') === 'grid';
+            const setView = (isGrid) => {
+                if (isGrid) {
+                    fileList.classList.add('grid-view');
+                    gridToggle.querySelector('i').className = 'fas fa-list fa-fw';
+                    viewLabel.textContent = 'List';
+                    sessionStorage.setItem('viewMode', 'grid');
+                } else {
+                    fileList.classList.remove('grid-view');
+                    gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
+                    viewLabel.textContent = 'Grid';
+                    sessionStorage.setItem('viewMode', 'list');
+                }
+            };
+            setView(isGridView);
+
+            gridToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                isGridView = !isGridView;
+                setView(isGridView);
+            });
+
+            // --- 2. Fungsi Tombol Kembali (history.back) ---
+            if (backButton) {
+                backButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.history.back();
+                });
+            }
+        });
+    </script>
+
+</body>
 </html>
