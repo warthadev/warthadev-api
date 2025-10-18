@@ -1,6 +1,5 @@
-# python/flask.py (Versi Lengkap dan Final)
+# python/flask.py (Versi Diperbarui dan Final)
 
-# Pastikan semua modul yang digunakan diimpor di sini.
 import os, shutil, importlib.util, json, stat, sys, subprocess
 from threading import Thread
 from flask import Flask, jsonify, request, render_template, redirect, url_for
@@ -8,6 +7,7 @@ from pyngrok import ngrok
 import logging
 from firebase_admin import firestore
 import os.path as os_path
+import time # Diperlukan untuk memberi jeda pada threading
 
 # Import Pyrogram secara tentatif
 try:
@@ -22,9 +22,9 @@ TELEGRAM_TOKEN_PATH = os.path.join(DRIVE_MOUNT_PATH, "warthadev-token.json")
 PORT = 5000
 
 # STATE global (akan diinisialisasi dari skrip Colab utama)
-STATE = {"tunnel_url": None, "tunnel_token": None, "db": None}
+STATE = {"tunnel_url": None, "tunnel_token": None, "db": None, "login_status": None} # Menambah 'login_status'
 
-# --- FUNGSI PEMBANTU ---
+# --- FUNGSI PEMBANTU (Tidak Berubah) ---
 
 def format_size(size_bytes):
     if size_bytes < 1024: return f"{size_bytes} B"
@@ -92,11 +92,12 @@ def install_pyrogram_if_needed():
         try:
             print("🚀 Memulai instalasi Pyrogram...")
             # Menggunakan subprocess.check_call untuk menjalankan pip install
-            # Gunakan --break-system-packages jika diperlukan di lingkungan tertentu
             subprocess.check_call([sys.executable, "-m", "pip", "install", "-q", "pyrogram"])
             # Coba impor lagi
             import pyrogram
             print("✅ Pyrogram berhasil diinstal.")
+            # Set variabel global pyrogram setelah instalasi
+            globals()['pyrogram'] = pyrogram
             return True
         except Exception as e:
             print(f"❌ Gagal menginstal Pyrogram: {e}")
@@ -109,7 +110,6 @@ def get_telegram_credentials():
     if not db:
         return None, None
     try:
-        # Asumsi DOC_COL = "api" dan DOC_ID = "token" dari skrip utama
         DOC_COL = "api" 
         DOC_ID = "token"
         doc_ref = db.collection(DOC_COL).document(DOC_ID)
@@ -117,21 +117,78 @@ def get_telegram_credentials():
         doc_data = doc_snap.to_dict() if doc_snap.exists else {}
         
         api_id = doc_data.get("telegram-api-id")
-        api_hash = doc_data.get("telegram-api-hast") # Menggunakan 'hast' sesuai data input
+        # PERBAIKAN BUG: Mengganti 'telegram-api-hast' menjadi 'telegram-api-hash'
+        api_hash = doc_data.get("telegram-api-hash") 
         
-        # Konversi api_id ke integer jika ditemukan
+        # Jika 'telegram-api-hast' masih digunakan di database lama, pakai fallback
+        if not api_hash:
+             api_hash = doc_data.get("telegram-api-hast")
+        
         if api_id:
-            try:
-                api_id = int(api_id)
-            except ValueError:
-                return None, None 
+            try: api_id = int(api_id)
+            except ValueError: return None, None 
 
         return api_id, api_hash
     except Exception as e:
         print(f"❌ Gagal mengambil kredensial Telegram dari Firestore: {e}")
         return None, None
 
-# --- INISIALISASI FLASK APP & ROUTE ---
+def pyrogram_login_thread(api_id, api_hash):
+    """Fungsi yang berjalan di thread terpisah untuk login interaktif Pyrogram."""
+    global pyrogram
+    # Nama sesi sementara yang tidak akan digunakan Pyrogram secara default
+    session_name = "colab_warthadev_session"
+    
+    print("\n" + "="*50)
+    print("🤖 MEMULAI LOGIN INTERAKTIF PYROGRAM")
+    print("   Harap cek log Colab untuk prompt input (Nomor/OTP/2FA)")
+    print("="*50)
+    
+    # Klien Pyrogram: 'in_memory' agar tidak membuat file sesi otomatis
+    app_client = pyrogram.Client(
+        session_name,
+        api_id=api_id,
+        api_hash=api_hash,
+        in_memory=True 
+    )
+
+    STATE["login_status"] = "PROMPT_USER_INPUT" # Status: Menunggu input pengguna di log Colab
+    
+    try:
+        app_client.start()
+        
+        # Ambil session string setelah login berhasil
+        session_string = app_client.export_session_string()
+        
+        # SIMPAN session string ke Drive
+        data_to_save = {
+            "session_string": session_string,
+            "api_id": api_id,
+            "api_hash": api_hash
+        }
+        with open(TELEGRAM_TOKEN_PATH, 'w') as f:
+            json.dump(data_to_save, f)
+        
+        print("\n" + "="*50)
+        print("✅ Session String berhasil dibuat dan disimpan ke Drive.")
+        print(f"   PATH: {TELEGRAM_TOKEN_PATH}")
+        print("="*50)
+        
+        STATE["login_status"] = "SUCCESS"
+
+    except Exception as e:
+        print(f"\n❌ GAGAL LOGIN PYROGRAM: {e}")
+        print("   Pastikan nomor, OTP, dan password 2FA yang dimasukkan benar.")
+        STATE["login_status"] = f"FAILED: {str(e)}"
+        
+    finally:
+        # Hentikan klien Pyrogram
+        try:
+            app_client.stop()
+        except Exception:
+            pass
+        
+# --- INISIALISASI FLASK APP & ROUTE (Tidak Berubah) ---
 
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "html")
 app = Flask(__name__, template_folder=template_dir)
@@ -212,44 +269,41 @@ def telegram_config():
     is_session_saved = os.path.exists(TELEGRAM_TOKEN_PATH)
 
     return render_template(
-        "telegram_config.html", 
+        "tele-config.html", # Menggunakan nama file template yang benar
         is_pyrogram_installed=is_pyrogram_installed,
         api_id=api_id,
         api_hash=api_hash,
         is_session_saved=is_session_saved,
-        telegram_token_path=TELEGRAM_TOKEN_PATH
+        telegram_token_path=TELEGRAM_TOKEN_PATH,
+        # Tambahkan status login untuk feedback di front-end
+        login_status=STATE.get("login_status") 
     )
 
 @app.route("/telegram/get_session")
 def get_session():
-    # PENTING: Pyrogram harus terinstal dan diimpor. Kita cek 'pyrogram' global
-    if not pyrogram:
-        return jsonify({"ok": False, "msg": "Pyrogram not installed or failed to import."}), 500
+    # PENTING: Pyrogram harus terinstal dan diimpor.
+    if pyrogram is None:
+        return jsonify({"ok": False, "msg": "Pyrogram belum terinstal atau gagal diimpor."}), 500
 
     api_id, api_hash = get_telegram_credentials()
 
     if not api_id or not api_hash:
         return jsonify({"ok": False, "msg": "Telegram API ID atau Hash tidak ditemukan di Firestore."}), 400
-
-    # Karena proses login interaktif Pyrogram sulit dilakukan di Flask,
-    # kita hanya akan melakukan SIMULASI penyimpanan data.
     
-    try:
-        # SIMULASI: Anggap berhasil mendapatkan session string
-        simulated_session_string = "SimulatedPyrogramSessionString123456789"
-        
-        data_to_save = {
-            "session_string": simulated_session_string,
-            "api_id": api_id,
-            "api_hash": api_hash
-        }
+    if STATE.get("login_status") == "PROMPT_USER_INPUT":
+         return jsonify({"ok": False, "msg": "Proses login sudah berjalan. Cek log Colab Anda!"}), 409
+         
+    # Jalankan proses login Pyrogram di thread terpisah agar Flask tidak terblokir
+    thread = Thread(target=pyrogram_login_thread, args=(api_id, api_hash,), daemon=True)
+    thread.start()
+    
+    # Beri sedikit waktu agar thread sempat set status PROMPT_USER_INPUT
+    time.sleep(1)
 
-        with open(TELEGRAM_TOKEN_PATH, 'w') as f:
-            json.dump(data_to_save, f)
-            
-        return jsonify({"ok": True, "msg": "Simulasi berhasil! Session String disimpan ke Drive.", "path": TELEGRAM_TOKEN_PATH})
-    except Exception as e:
-        return jsonify({"ok": False, "msg": f"Gagal menyimpan session: {e}"}), 500
+    return jsonify({
+        "ok": True, 
+        "msg": "Login interaktif dimulai! Cek log Colab untuk memasukkan nomor telepon, OTP, dan 2FA Anda."
+    })
 
 @app.route("/telegram/set_session", methods=['POST'])
 def set_session():
@@ -263,6 +317,10 @@ def set_session():
         return jsonify({"ok": False, "msg": "Telegram API ID atau Hash tidak ditemukan di Firestore."}), 400
         
     try:
+        # VALIDASI Sederhana: Memastikan string Pyrogram valid
+        if not session_string.startswith("BQ"):
+             return jsonify({"ok": False, "msg": "Session string Pyrogram tidak valid (harus diawali 'BQ')."}), 400
+             
         data_to_save = {
             "session_string": session_string,
             "api_id": api_id,
@@ -276,7 +334,7 @@ def set_session():
         return jsonify({"ok": False, "msg": f"Gagal menyimpan session: {e}"}), 500
 
 
-# --- FUNGSI UTAMA RUNTIME ---
+# --- FUNGSI UTAMA RUNTIME (Tidak Berubah) ---
 
 def run_flask(db_client, initial_token):
     STATE["db"] = db_client
