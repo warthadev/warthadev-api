@@ -186,7 +186,7 @@
         .nav-icon { 
             display: flex; flex-direction: column; align-items: center; 
             padding: 5px; color: #ced4da; transition: color 0.2s;
-            cursor: pointer; /* Menambahkan pointer untuk ikon navigasi */
+            cursor: pointer;
         }
         .nav-icon i { font-size: 1.2em; }
         .nav-icon span { font-size: 0.7em; margin-top: 3px; }
@@ -335,7 +335,7 @@
             <div class="menu-modal">
                 <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
                 <div class="menu-list">
-                    <div class="menu-item" id="config-telegram"><i class="fab fa-telegram-plane"></i> Telegram Konfigurasi</div>
+                    <a href="/telegram/config" class="menu-item" id="config-telegram-link"><i class="fab fa-telegram-plane"></i> Telegram Konfigurasi</a>
                     <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
                     <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
                     <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
@@ -384,6 +384,9 @@
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
 
+            // Item menu dummy
+            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); // Ambil item yang BUKAN link
+            const configTelegramLink = document.getElementById('config-telegram-link');
 
             // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
@@ -448,12 +451,21 @@
                 }
             });
             
-            // Event listener dummy untuk opsi menu (UX testing)
-            document.querySelectorAll('.menu-item').forEach(item => {
-                item.addEventListener('click', function() {
+            // --- 4. Event listener Menu Item DUMMY ---
+            // Event listener dummy untuk opsi menu yang BELUM diimplementasikan
+            dummyMenuItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault(); // Mencegah navigasi default jika ada
                     alert('Fungsi ' + item.textContent.trim() + ' akan diimplementasikan di backend Flask.');
                     toggleMenu(false); 
                 });
+            });
+
+            // Event listener KHUSUS untuk link Telegram (untuk menutup modal sebelum navigasi)
+            configTelegramLink.addEventListener('click', function(e) {
+                // Biarkan navigasi (href="/telegram/config") terjadi, 
+                // hanya tutup menu agar UX lebih lancar.
+                setTimeout(() => toggleMenu(false), 50); 
             });
 
         });
