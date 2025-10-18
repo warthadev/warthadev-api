@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telegram Config</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <style>
+        body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
+        .container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 20px; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; margin-top: 0; }
+        
+        .status-box {
+            padding: 15px;
+            margin-bottom: 20px;
+            border-radius: 5px;
+            display: flex;
+            align-items: center;
+        }
+        .status-success { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-warning { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-danger { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .status-box i { font-size: 1.5em; margin-right: 15px; }
+
+        .config-section { margin-bottom: 30px; border: 1px solid #ddd; padding: 20px; border-radius: 8px; }
+        .config-section h3 { margin-top: 0; color: #007bff; }
+        
+        .btn {
+            display: inline-block;
+            padding: 10px 15px;
+            margin: 5px 0;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-align: center;
+            transition: background-color 0.2s;
+        }
+        .btn-primary { background-color: #007bff; color: white; }
+        .btn-primary:hover { background-color: #0056b3; }
+        .btn-success { background-color: #28a745; color: white; }
+        .btn-success:hover { background-color: #1e7e34; }
+        
+        input[type="text"] {
+            width: 100%;
+            padding: 10px;
+            margin: 10px 0;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+
+        #loading-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255, 255, 255, 0.8); z-index: 999;
+            display: none; justify-content: center; align-items: center;
+            font-size: 1.2em;
+        }
+    </style>
+</head>
+<body>
+    <div id="loading-overlay">
+        <i class="fas fa-spinner fa-spin"></i> Memproses...
+    </div>
+
+    <div class="container">
+        <h2><i class="fab fa-telegram-plane"></i> Konfigurasi Telegram</h2>
+        
+        {# --- Status Instalasi Pyrogram --- #}
+        {% if is_pyrogram_installed %}
+        <div class="status-box status-success">
+            <i class="fas fa-check-circle"></i>
+            Paket Pyrogram sudah terinstal.
+        </div>
+        {% else %}
+        <div class="status-box status-danger">
+            <i class="fas fa-times-circle"></i>
+            Gagal menginstal Pyrogram. Cek output terminal Colab.
+        </div>
+        {% endif %}
+
+        {# --- Status Kredensial Firestore --- #}
+        {% if api_id and api_hash %}
+        <div class="status-box status-success">
+            <i class="fas fa-database"></i>
+            **API Kredensial (Firestore):** ID: **{{ api_id }}**, Hash: **{{ api_hash[:4] }}...** ditemukan.
+        </div>
+        {% else %}
+        <div class="status-box status-danger">
+            <i class="fas fa-exclamation-triangle"></i>
+            API ID / Hash Telegram **TIDAK** ditemukan di Firestore.
+        </div>
+        {% endif %}
+
+        {# --- Status Session String --- #}
+        {% if is_session_saved %}
+        <div class="status-box status-success">
+            <i class="fas fa-lock"></i>
+            **Session String Telegram sudah tersimpan** di Drive (<code>{{ telegram_token_path }}</code>).
+        </div>
+        {% else %}
+        <div class="status-box status-warning">
+            <i class="fas fa-exclamation-circle"></i>
+            Session String belum tersimpan di Drive. Pilih opsi di bawah.
+        </div>
+        {% endif %}
+
+        <hr>
+
+        {# --- Opsi 1: Dapatkan Session String (Menggunakan Pyrogram) --- #}
+        <div class="config-section">
+            <h3>1. Dapatkan Session String Baru</h3>
+            <p>Gunakan kredensial Firestore untuk login interaktif dan membuat Session String baru. (Membutuhkan Pyrogram terinstal).</p>
+            <button class="btn btn-primary" id="btn-get-session" {% if not is_pyrogram_installed or not api_id %} disabled {% endif %}>
+                <i class="fas fa-sign-in-alt"></i> Dapatkan Session String
+            </button>
+            <p style="font-size: 0.8em; color: #6c757d;">*(Catatan: Ini akan menjalankan proses login di backend Flask yang mungkin memerlukan input dari log Colab.)*</p>
+        </div>
+
+        {# --- Opsi 2: Masukkan Session String Manual --- #}
+        <div class="config-section">
+            <h3>2. Masukkan Session String Manual</h3>
+            <p>Jika Anda sudah memiliki Session String Pyrogram, masukkan di bawah untuk menyimpan ke Drive.</p>
+            <form id="form-set-session">
+                <input type="text" id="session_input" name="session_string" placeholder="PASTE SESSION STRING PYROGRAM DI SINI" required>
+                <button type="submit" class="btn btn-success" {% if not api_id %} disabled {% endif %}>
+                    <i class="fas fa-save"></i> Simpan Session String
+                </button>
+            </form>
+        </div>
+        
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const loadingOverlay = document.getElementById('loading-overlay');
+            const btnGetSession = document.getElementById('btn-get-session');
+            const formSetSession = document.getElementById('form-set-session');
+
+            const showLoading = (show) => {
+                loadingOverlay.style.display = show ? 'flex' : 'none';
+            };
+
+            // --- Handler Opsi 1: Dapatkan Session ---
+            btnGetSession.addEventListener('click', function() {
+                if(this.disabled) return;
+                showLoading(true);
+
+                fetch('/telegram/get_session')
+                    .then(response => response.json())
+                    .then(data => {
+                        alert(data.msg + (data.ok ? "" : " Silakan cek log Colab untuk detail error."));
+                        if (data.ok) {
+                            window.location.reload(); // Muat ulang halaman untuk update status
+                        }
+                    })
+                    .catch(error => {
+                        alert('Terjadi kesalahan koneksi: ' + error);
+                    })
+                    .finally(() => {
+                        showLoading(false);
+                    });
+            });
+
+            // --- Handler Opsi 2: Set Session Manual ---
+            formSetSession.addEventListener('submit', function(e) {
+                e.preventDefault();
+                showLoading(true);
+
+                const sessionString = document.getElementById('session_input').value.trim();
+                if (!sessionString) {
+                    alert("Session string tidak boleh kosong.");
+                    showLoading(false);
+                    return;
+                }
+
+                // Menggunakan FormData untuk POST
+                const formData = new FormData();
+                formData.append('session_string', sessionString);
+
+                fetch('/telegram/set_session', {
+                    method: 'POST',
+                    body: formData
+                })
+                .then(response => response.json())
+                .then(data => {
+                    alert(data.msg);
+                    if (data.ok) {
+                        window.location.reload(); // Muat ulang halaman untuk update status
+                    }
+                })
+                .catch(error => {
+                    alert('Terjadi kesalahan koneksi: ' + error);
+                })
+                .finally(() => {
+                    showLoading(false);
+                });
+            });
+        });
+    </script>
+
+</body>
+</html>
