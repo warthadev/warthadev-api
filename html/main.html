@@ -186,10 +186,76 @@
         .nav-icon { 
             display: flex; flex-direction: column; align-items: center; 
             padding: 5px; color: #ced4da; transition: color 0.2s;
+            cursor: pointer; /* Menambahkan pointer untuk ikon navigasi */
         }
         .nav-icon i { font-size: 1.2em; }
         .nav-icon span { font-size: 0.7em; margin-top: 3px; }
         .nav-icon:hover { color: #ffffff; }
+
+        /* --- MENU OVERLAY STYLES --- */
+        #menu-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6); /* Background gelap transparan */
+            z-index: 150;
+            display: none; /* Sembunyikan secara default */
+            justify-content: center;
+            align-items: center;
+        }
+
+        .menu-modal {
+            background-color: white;
+            width: 90%;
+            max-width: 400px;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+            padding: 20px;
+            transform: translateY(20px);
+            transition: transform 0.3s ease-out;
+        }
+        
+        #menu-overlay.active .menu-modal {
+            transform: translateY(0);
+        }
+
+        .menu-modal h3 {
+            margin-top: 0;
+            border-bottom: 2px solid #eee;
+            padding-bottom: 10px;
+            color: #343a40;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .menu-item {
+            padding: 12px 10px;
+            border-bottom: 1px solid #f8f9fa;
+            cursor: pointer;
+            transition: background-color 0.2s;
+            display: flex;
+            align-items: center;
+        }
+
+        .menu-item:hover {
+            background-color: #e9ecef;
+        }
+
+        .menu-item i {
+            margin-right: 15px;
+            color: #007bff;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5em;
+            color: #adb5bd;
+            cursor: pointer;
+        }
     </style>
 </head>
 <body>
@@ -263,10 +329,32 @@
                 {% endif %}
             {% endfor %}
         </div>
+        
+        {# --- MENU OVERLAY --- #}
+        <div id="menu-overlay">
+            <div class="menu-modal">
+                <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
+                <div class="menu-list">
+                    <div class="menu-item" id="config-telegram"><i class="fab fa-telegram-plane"></i> Telegram Konfigurasi</div>
+                    <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
+                    <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
+                    <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
+                    <div class="menu-item" id="delete-item"><i class="fas fa-trash-alt"></i> Hapus Folder atau File</div>
+                    <div class="menu-item" id="download-item"><i class="fas fa-download"></i> Download</div>
+                    <div class="menu-item" id="upload-item"><i class="fas fa-upload"></i> Upload</div>
+                </div>
+            </div>
+        </div>
 
         <div class="fixed-footer">
-            <a href="#" class="nav-icon"><i class="fas fa-bars"></i><span>Menu</span></a>
-            <a href="#" id="grid-toggle" class="nav-icon"><i class="fas fa-th-large"></i><span id="view-label">Grid</span></a>
+            <a href="#" class="nav-icon" id="menu-toggle">
+                <i class="fas fa-bars"></i>
+                <span>Menu</span>
+            </a>
+            <a href="#" id="grid-toggle" class="nav-icon">
+                <i class="fas fa-th-large"></i>
+                <span id="view-label">Grid</span>
+            </a>
             
             {% if path != root_path %}
             <a href="/?path={{ root_path }}" class="nav-icon">
@@ -281,8 +369,6 @@
                 <span>Kembali</span>
             </a>
             {% endif %}
-            
-            {# Tombol Upload dan Download Dihapus dari sini #}
         </div>
     </div>
 
@@ -292,6 +378,12 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
+            
+            // Elemen Menu Baru
+            const menuToggle = document.getElementById('menu-toggle');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const closeMenuButton = document.getElementById('close-menu');
+
 
             // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
@@ -324,6 +416,46 @@
                     window.history.back();
                 });
             }
+
+            // --- 3. Fungsi Menu Overlay ---
+            const toggleMenu = (show) => {
+                if (show) {
+                    menuOverlay.style.display = 'flex';
+                    // Tambahkan kelas untuk animasi
+                    setTimeout(() => menuOverlay.classList.add('active'), 10); 
+                } else {
+                    menuOverlay.classList.remove('active');
+                    // Tunggu sebentar sebelum display: none agar animasi selesai
+                    setTimeout(() => menuOverlay.style.display = 'none', 300);
+                }
+            };
+
+            // Tampilkan Menu
+            menuToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleMenu(true);
+            });
+
+            // Sembunyikan Menu
+            closeMenuButton.addEventListener('click', function() {
+                toggleMenu(false);
+            });
+
+            // Sembunyikan Menu saat mengklik luar modal
+            menuOverlay.addEventListener('click', function(e) {
+                if (e.target.id === 'menu-overlay') {
+                    toggleMenu(false);
+                }
+            });
+            
+            // Event listener dummy untuk opsi menu (UX testing)
+            document.querySelectorAll('.menu-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    alert('Fungsi ' + item.textContent.trim() + ' akan diimplementasikan di backend Flask.');
+                    toggleMenu(false); 
+                });
+            });
+
         });
     </script>
 
