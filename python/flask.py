@@ -1,30 +1,25 @@
-# python/flask.py (Versi Diperbaiki)
+# python/flask.py (Versi Diperbaiki Final)
 
 # Pastikan semua modul yang digunakan diimpor di sini.
-import os, shutil, importlib.util, json, stat # <--- FIX: Tambahkan os dan stat
+import os, shutil, importlib.util, json, stat
 from threading import Thread
 from flask import Flask, jsonify, request, render_template, redirect, url_for
 from pyngrok import ngrok
-import logging
+import logging # Penting untuk logging
 from firebase_admin import firestore
-import os.path as os_path # <--- FIX: os.path diimpor untuk digunakan di Jinja2
+import os.path as os_path
 
 # --- CONFIG ---
 ROOT_PATH = "/content"
 DRIVE_MOUNT_PATH = "/content/drive"
-PORT = 5000 # <--- FIX: Pastikan ini berada di level atas
+PORT = 5000
 
 # STATE global (akan diinisialisasi dari skrip Colab utama)
 STATE = {"tunnel_url": None, "tunnel_token": None, "db": None}
 
-# Menonaktifkan logging Flask default
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR)
-
 # --- FUNGSI PEMBANTU (Menggunakan os yang sudah diimpor) ---
 
 def format_size(size_bytes):
-    # ... (tetap sama)
     if size_bytes < 1024: return f"{size_bytes} B"
     size_bytes /= 1024
     if size_bytes < 1024: return f"{size_bytes:.1f} KB"
@@ -34,7 +29,6 @@ def format_size(size_bytes):
     return f"{size_bytes:.1f} GB"
 
 def get_dir_size(start_path='.'):
-    # ... (tetap sama, menggunakan os.scandir dan os.stat)
     total_size = 0
     try:
         for entry in os.scandir(start_path):
@@ -44,7 +38,6 @@ def get_dir_size(start_path='.'):
     return total_size
 
 def get_disk_usage(path):
-    # ... (tetap sama, menggunakan os.statvfs)
     try:
         statvfs = os.statvfs(path)
         total = statvfs.f_blocks * statvfs.f_frsize
@@ -56,7 +49,6 @@ def get_disk_usage(path):
         return 0, 0, 0, 0
 
 def list_dir(path):
-    # ... (tetap sama, menggunakan os.listdir, os.path.join, os.stat)
     files = []
     try:
         for f in os.listdir(path):
@@ -90,7 +82,7 @@ def list_dir(path):
 # Mendefinisikan jalur ke folder template: "../html" relatif terhadap python/
 template_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "html")
 
-app = Flask(__name__, template_folder=template_dir) # Mengatur lokasi template
+app = Flask(__name__, template_folder=template_dir)
 
 
 @app.route("/")
@@ -127,7 +119,6 @@ def index():
 
 @app.route("/set_tunnel")
 def set_tunnel():
-    # ... (tetap sama)
     token = request.args.get("token", default=None, type=str)
     if not token: return jsonify({"ok": False, "msg": "Missing token param. Gunakan ?token=PASTE_TOKEN"}), 400
 
@@ -143,7 +134,7 @@ def set_tunnel():
             DOC_COL = "tunnel"
             DOC_ID = "token"
             doc_ref = db.collection(DOC_COL).document(DOC_ID)
-            from firebase_admin import firestore # Harus diimpor di sini jika tidak diimpor di global scope
+            from firebase_admin import firestore
             doc_ref.set({"tunnel": token, "ngrok": token, "_tunnel_saved_at": firestore.SERVER_TIMESTAMP}, merge=True)
 
         return jsonify({"ok": True, "msg": "Tunnel started", "public_url": public_url})
@@ -159,6 +150,11 @@ def run_flask(db_client, initial_token):
     STATE["db"] = db_client
     STATE["tunnel_token"] = initial_token
 
+    # <<< SOLUSI FINAL: Atur level log tepat sebelum server dimulai >>>
+    log = logging.getLogger('werkzeug')
+    log.setLevel(logging.ERROR)
+    # <<< END SOLUSI >>>
+
     thread = Thread(target=lambda: app.run(host="0.0.0.0", port=PORT, debug=False, use_reloader=False), daemon=True)
     thread.start()
 
@@ -168,9 +164,7 @@ def run_flask(db_client, initial_token):
             ngrok.set_auth_token(STATE["tunnel_token"])
             public_url = ngrok.connect(PORT).public_url
             STATE["tunnel_url"] = public_url
-            # print("✅ Tunnel auto-start berhasil!")
         except Exception as e:
             pass
-            # print(f"⚠️ Gagal auto-start tunnel: {e}. Coba set token secara manual.")
 
     return public_url
