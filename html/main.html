@@ -52,41 +52,35 @@
         /* FILE ITEM (LIST VIEW - Horizontal size) */
         .file-item { 
             display: flex; 
-            align-items: center; /* Sejajarkan vertikal */
+            justify-content: space-between; 
+            align-items: center; 
             padding: 10px 15px; 
             border-bottom: 1px solid #eee; 
             transition: background-color 0.2s; 
             cursor: default; 
             position: relative;
         }
-        .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; flex-shrink: 0; /* Pastikan ikon tidak menyusut */ }
+        .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
         
-        /* [LIST VIEW] PENGATURAN KESELARASAN */
+        /* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal */
         .file-text-container { 
-            flex-grow: 1; /* Kontainer teks mengambil sisa ruang */
-            display: flex;
-            justify-content: space-between; /* Pisahkan nama dan ukuran */
-            align-items: center;
+            flex: 1; 
             overflow: hidden; 
+            display: block; 
         }
         
         .file-name { 
-            flex-grow: 1; /* Nama file tumbuh hingga batas max-width */
-            max-width: 70%; /* Batas maks 70% agar ada ruang untuk ukuran */
-            white-space: nowrap; 
-            overflow: hidden; 
-            text-overflow: ellipsis; /* Gunakan ellipsis jika terlalu panjang */
+            white-space: normal; 
+            word-break: break-all; 
             font-weight: 500; 
-            margin-right: 15px; /* Jarak antara nama dan ukuran */
-            flex-shrink: 1; /* Izinkan menyusut jika perlu */
+            display: inline-block; 
+            margin-right: 15px; 
+            max-width: calc(100% - 100px); 
         }
         .file-size { 
-            flex-shrink: 0; /* Pastikan ukuran tidak menyusut */
-            min-width: 80px; /* Berikan lebar minimum agar sejajar */
-            text-align: right;
             font-size: 0.8em; 
             color: #6c757d; 
-            font-weight: normal;
+            float: right; 
         }
         
         /* Sembunyikan Teks Absolute di List View */
@@ -112,8 +106,6 @@
             border: 1px solid #ddd;
             border-radius: 8px;
             overflow: hidden; 
-            padding: 0; /* Reset padding List View */
-            border-bottom: none;
         }
         
         /* Sembunyikan Teks List View di Grid View */
