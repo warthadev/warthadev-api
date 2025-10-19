@@ -41,8 +41,6 @@
             border-radius: 4px; 
             font-size: 0.9em; 
             word-wrap: break-word; 
-            user-select: none;
-            cursor: pointer; 
         }
 
         .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
@@ -61,7 +59,6 @@
             transition: background-color 0.2s; 
             cursor: default; 
             position: relative;
-            user-select: none; 
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
         
@@ -91,36 +88,6 @@
             display: none;
         }
 
-        /* --- MODE SELEKSI BARU --- */
-        .file-item.selected {
-            background-color: #e0f7fa; /* Light blue background for selection */
-            border-left: 5px solid #00bcd4; /* Accent border */
-            padding-left: 10px; /* Sesuaikan padding karena ada border kiri */
-            border-color: #00bcd4;
-            position: relative;
-        }
-
-        /* Ikon Centang pada Item Terpilih */
-        .file-item.selected::after {
-            content: '\f058'; /* Check-circle icon */
-            font-family: 'Font Awesome 5 Free';
-            font-weight: 900;
-            position: absolute;
-            top: 50%;
-            right: 10px;
-            transform: translateY(-50%);
-            color: #00bcd4;
-            font-size: 1.2em;
-            z-index: 5;
-        }
-
-        /* Penyesuaian ikon centang di Grid View */
-        .file-list.grid-view .file-item.selected::after {
-            right: 5px;
-            top: 5px;
-            transform: none; /* Hilangkan translateY untuk grid view */
-        }
-        
         /* --- GRID VIEW STYLES --- */
         .file-list.grid-view {
             display: grid; 
@@ -290,25 +257,6 @@
             color: #adb5bd;
             cursor: pointer;
         }
-        
-        /* --- FLOATING SELECTION MENU --- */
-        #selection-menu {
-            position: fixed;
-            bottom: 70px; /* Di atas footer 55px + sedikit margin */
-            right: 20px;
-            width: 50px;
-            height: 50px;
-            border-radius: 50%;
-            background-color: #dc3545; /* Merah untuk aksi */
-            color: white;
-            display: none; /* Sembunyi default */
-            justify-content: center;
-            align-items: center;
-            font-size: 1.5em;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
-            cursor: pointer;
-            z-index: 120;
-        }
     </style>
 </head>
 <body>
@@ -335,8 +283,7 @@
                 {% endif %}
             </div>
 
-            {# Path. Klik kanan akan memunculkan menu browser. #}
-            <div class="current-path" title="Klik kanan untuk menu browser."><strong>Path:</strong> <code>{{ path }}</code></div>
+            <div class="current-path"><strong>Path:</strong> <code>{{ path }}</code></div>
         </div>
 
         <div id="file-list" class="file-list">
@@ -349,7 +296,7 @@
                 {% set icon_class = f['icon_class'] %}
                 
                 {% if f['is_dir'] %}
-                    <div class="file-item file-folder" data-path="{{ target_path }}">
+                    <a href="/?path={{ target_path }}" class="file-item file-folder">
                         
                         {# Teks Absolute Grid View #}
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
@@ -363,7 +310,7 @@
                             <span class="file-name">{{ f['name'] }}</span>
                             <span class="file-size">{{ f['size'] }}</span>
                         </div>
-                    </div>
+                    </a>
                 {% else %}
                     <div class="file-item file-file" data-path="{{ f['full_path'] }}">
 
@@ -384,29 +331,28 @@
             {% endfor %}
         </div>
         
-        {# --- FLOATING SELECTION MENU --- #}
-        <div id="selection-menu" title="Aksi Seleksi">
-            <i class="fas fa-ellipsis-v"></i> 
-        </div>
-
-        {# --- MENU OVERLAY (Hanya Alternatif Cloud & Tambah Folder) --- #}
+        {# --- MENU OVERLAY --- #}
         <div id="menu-overlay">
             <div class="menu-modal">
-                <h3>Menu Tambah <button class="close-btn" id="close-menu">&times;</button></h3>
+                <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
                 <div class="menu-list">
                     
                     <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
-                    <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
                     
+                    <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
+                    <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
+                    <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
+                    <div class="menu-item" id="delete-item"><i class="fas fa-trash-alt"></i> Hapus Folder atau File</div>
+                    
+                    {# DOWNLOAD DAN UPLOAD TELAH DIHAPUS #}
                 </div>
             </div>
         </div>
 
         <div class="fixed-footer">
-            {# Ganti Menu dengan Tambah (+) #}
             <a href="#" class="nav-icon" id="menu-toggle">
-                <i class="fas fa-plus"></i>
-                <span>Tambah</span>
+                <i class="fas fa-bars"></i>
+                <span>Menu</span>
             </a>
             <a href="#" id="grid-toggle" class="nav-icon">
                 <i class="fas fa-th-large"></i>
@@ -443,135 +389,16 @@
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
             const browserLink = document.getElementById('browser-link');
-            const pathDiv = document.querySelector('.current-path');
             
             // Elemen Menu
             const menuToggle = document.getElementById('menu-toggle');
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
-            
-            // Elemen Seleksi
-            const selectionMenu = document.getElementById('selection-menu');
-            let selectedPaths = new Set(); 
 
             // Item menu dummy: Mengambil SEMUA DIV di menu-list
             const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
             
-            
-            // --- FUNGSI UTAMA SELEKSI ---
-            
-            function toggleSelection(item, path) {
-                if (selectedPaths.has(path)) {
-                    selectedPaths.delete(path);
-                    item.classList.remove('selected');
-                } else {
-                    selectedPaths.add(path);
-                    item.classList.add('selected');
-                }
-                updateSelectionMenu(Array.from(selectedPaths));
-            }
-            
-            function updateSelectionMenu(paths) {
-                if (paths.length === 0) {
-                    selectionMenu.style.display = 'none';
-                    return;
-                }
-                
-                selectionMenu.style.display = 'flex';
-                
-                // Cek kondisi file untuk menu
-                const isSingleSelection = paths.length === 1;
-                const singlePath = isSingleSelection ? paths[0] : null;
-                const isImage = isSingleSelection && (singlePath.toLowerCase().endsWith('.jpg') || singlePath.toLowerCase().endsWith('.png') || singlePath.toLowerCase().endsWith('.jpeg'));
-                const isCompressed = isSingleSelection && (singlePath.toLowerCase().endsWith('.zip') || singlePath.toLowerCase().endsWith('.rar') || singlePath.toLowerCase().endsWith('.tar') || singlePath.toLowerCase().endsWith('.gz'));
-                
-                // Menu Aksi Seleksi - Dummy
-                selectionMenu.onclick = () => {
-                    let actions = [
-                        'Download', // Dipindahkan ke menu seleksi
-                        'Move', 
-                        'Paste (Placeholder)', 
-                        'Delete',
-                        'Compress', 
-                    ];
-
-                    if (isImage) {
-                        actions.unshift('Slideshow');
-                    }
-                    if (isCompressed) {
-                        actions.push('Extract');
-                    }
-                    
-                    alert('Menu Aksi Seleksi Dibuka. \nTerpilih (' + paths.length + '):\n' + paths.map(p => '- ' + p.split('/').pop()).join('\n') +
-                          '\n\nOpsi yang Tersedia:\n' + actions.join('\n- '));
-                };
-            }
-            
-            // --- 0. Navigasi Folder & Seleksi Logic (FIXED) ---
-
-            fileList.addEventListener('click', function(e) {
-                const item = e.target.closest('.file-item');
-                if (!item) return;
-
-                const isFolder = item.classList.contains('file-folder');
-                const path = item.getAttribute('data-path');
-
-                if (!path) return;
-
-                // Jika sudah ada item yang terseleksi, setiap klik (tap) berfungsi sebagai TOGGLE SELEKSI
-                if (selectedPaths.size > 0) {
-                    e.preventDefault();
-                    toggleSelection(item, path);
-                    return; 
-                }
-
-                // Jika BELUM ada item terseleksi, klik berfungsi sebagai NAVIGASI/BUKA
-                if (isFolder) {
-                    e.preventDefault();
-                    window.location.href = '/?path=' + encodeURIComponent(path);
-                } else if (item.classList.contains('file-file')) {
-                    e.preventDefault();
-                    window.location.href = '/file?path=' + encodeURIComponent(path);
-                }
-            });
-
-            // --- 0b. Tambahkan Event Listener untuk Mengaktifkan Seleksi Pertama (FIXED) ---
-            // Ini akan memastikan klik pertama SELALU memulai mode seleksi, tidak peduli apakah itu file/folder.
-            // Gunakan `dblclick` untuk menghindari bentrokan dengan navigasi? TIDAK. Tetap gunakan klik, tapi batalkan navigasi.
-
-            // Solusi untuk klik pertama sebagai seleksi:
-            // Karena `click` di atas sudah mengatur navigasi/buka saat selectedPaths.size === 0, 
-            // kita gunakan *long press* / *contextmenu* (klik kanan) untuk menginisiasi seleksi PERTAMA.
-
-            // Namun, karena Anda ingin klik kiri/tap sekali saja untuk seleksi, 
-            // kita modifikasi agar klik pertama MENGAKTIFKAN seleksi pada item yang diklik.
-
-            // Hapus semua fileItems event listener lama, biarkan `fileList.addEventListener('click')` yang menanganinya.
-            
-            // Jika Anda ingin klik kiri biasa selalu menjadi toggle seleksi:
-            // Maka navigasi folder/buka file harus dipicu oleh DBLCLICK atau tombol lain.
-            
-            // Kita kembalikan logika klik kanan (contextmenu) untuk memulai seleksi, 
-            // karena ini cara paling efektif untuk membedakan navigasi dan seleksi di desktop.
-            // Di mobile, long press (juga memicu contextmenu) akan menginisiasi seleksi, lalu tap berfungsi sebagai toggle.
-
-            const allFileItems = document.querySelectorAll('.file-item');
-            
-            allFileItems.forEach(item => {
-                // Gunakan contextmenu (klik kanan / long press) untuk memulai seleksi pertama
-                item.addEventListener('contextmenu', function(e) {
-                    e.preventDefault(); // Blokir menu konteks bawaan
-                    
-                    const path = this.getAttribute('data-path');
-                    if (path) {
-                        // Ini akan menjadi trigger untuk memulai mode seleksi, lalu tap/klik kiri berikutnya akan menjadi toggle
-                        toggleSelection(item, path);
-                    }
-                });
-            });
-
-
-            // --- 1. Fungsi Toggle Grid (Tidak ada perubahan) ---
+            // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
             const setView = (isGrid) => {
@@ -595,7 +422,7 @@
                 setView(isGridView);
             });
 
-            // --- 2. Fungsi Tombol Kembali (Tidak ada perubahan) ---
+            // --- 2. Fungsi Tombol Kembali (history.back) ---
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -603,7 +430,7 @@
                 });
             }
 
-            // --- 3. Fungsi Menu Overlay (Tidak ada perubahan) ---
+            // --- 3. Fungsi Menu Overlay ---
             const toggleMenu = (show) => {
                 if (show) {
                     menuOverlay.style.display = 'flex';
@@ -614,7 +441,7 @@
                 }
             };
 
-            // Tampilkan Menu Tambah
+            // Tampilkan Menu
             menuToggle.addEventListener('click', function(e) {
                 e.preventDefault();
                 toggleMenu(true);
@@ -632,27 +459,31 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY (Tidak ada perubahan) ---
+            // --- 4. Event listener Menu Item DUMMY ---
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
-                    alert(`Aksi: ${this.textContent.trim()} (Belum diimplementasikan)`);
-                    toggleMenu(false);
+                    // Item menu klik tidak menutup modal.
                 });
             });
             
-            // --- 5. Blokir Menu Konteks Bawaan pada Path ---
-            pathDiv.addEventListener('contextmenu', function(e) {
-                e.preventDefault();
-                alert("Menu Konteks pada Path diblokir. Tidak ada aksi seleksi di sini.");
+            // --- 5. Event listener untuk File Klik (Buka/Download) ---
+            document.querySelectorAll('.file-item.file-file').forEach(fileDiv => {
+                fileDiv.addEventListener('click', function() {
+                    const fullPath = this.getAttribute('data-path');
+                    if (fullPath) {
+                        window.location.href = '/file?path=' + encodeURIComponent(fullPath);
+                    }
+                });
             });
             
-            // --- 6. Event listener Tombol Browser/Dunia (Tidak ada aksi) ---
+            // --- 6. Event listener Tombol Browser/Dunia (Tidak Ada Aksi) ---
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 // Tidak ada aksi lanjutan di sini.
             });
-            
+
+
         });
     </script>
 
