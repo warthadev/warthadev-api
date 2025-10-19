@@ -311,7 +311,7 @@
                         </div>
                     </a>
                 {% else %}
-                    <div class="file-item file-file">
+                    <div class="file-item file-file" data-path="{{ f['full_path'] }}">
 
                         {# Teks Absolute Grid View #}
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
@@ -385,9 +385,9 @@
             const closeMenuButton = document.getElementById('close-menu');
 
             // Item menu dummy
-            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); // Ambil item yang BUKAN link
+            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item:not(a)'); // Ambil item yang BUKAN link <a>
             const configTelegramLink = document.getElementById('config-telegram-link');
-
+            
             // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
@@ -451,20 +451,31 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY ---
+            // --- 4. Event listener Menu Item DUMMY (Tanpa Alert) ---
             // Event listener dummy untuk opsi menu yang BELUM diimplementasikan
+            // Sekarang hanya menutup modal, tanpa alert
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
-                    e.preventDefault(); // Mencegah navigasi default jika ada
-                    alert('Fungsi ' + item.textContent.trim() + ' akan diimplementasikan di backend Flask.');
+                    e.preventDefault(); 
+                    // Baris alert sebelumnya dihapus di sini
                     toggleMenu(false); 
+                });
+            });
+            
+            // --- 5. Event listener untuk File Klik ---
+            // Mengatasi kasus file yang bukan link <a>
+            document.querySelectorAll('.file-item.file-file').forEach(fileDiv => {
+                fileDiv.addEventListener('click', function() {
+                    // Menggunakan data-path (yang baru ditambahkan di HTML di atas)
+                    const fullPath = this.getAttribute('data-path');
+                    if (fullPath) {
+                        window.location.href = '/file?path=' + encodeURIComponent(fullPath);
+                    }
                 });
             });
 
             // Event listener KHUSUS untuk link Telegram (untuk menutup modal sebelum navigasi)
             configTelegramLink.addEventListener('click', function(e) {
-                // Biarkan navigasi (href="/telegram/config") terjadi, 
-                // hanya tutup menu agar UX lebih lancar.
                 setTimeout(() => toggleMenu(false), 50); 
             });
 
