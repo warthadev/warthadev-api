@@ -188,8 +188,8 @@
             padding: 5px; color: #ced4da; transition: color 0.2s;
             cursor: pointer;
         }
-        .nav-icon i { font-size: 1.2em; }
-        .nav-icon span { font-size: 0.7em; margin-top: 3px; }
+        .nav-icon i { font-size: 1.5em; /* Ukuran ikon lebih besar karena tidak ada teks */ }
+        .nav-icon span { display: none; /* SEMBUNYIKAN Teks */ }
         .nav-icon:hover { color: #ffffff; }
 
         /* --- MENU OVERLAY STYLES --- */
@@ -239,6 +239,10 @@
             transition: background-color 0.2s;
             display: flex;
             align-items: center;
+        }
+
+        .menu-item:last-child {
+            border-bottom: none; /* Hapus border di item terakhir */
         }
 
         .menu-item:hover {
@@ -331,7 +335,7 @@
             {% endfor %}
         </div>
         
-        {# --- MENU OVERLAY --- #}
+        {# --- MENU OVERLAY DENGAN ITEM YANG DIMINTA SAJA --- #}
         <div id="menu-overlay">
             <div class="menu-modal">
                 <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
@@ -340,45 +344,39 @@
                     <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
                     
                     <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
-                    <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
-                    <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
-                    <div class="menu-item" id="delete-item"><i class="fas fa-trash-alt"></i> Hapus Folder atau File</div>
-                    
-                    {# DOWNLOAD DAN UPLOAD TELAH DIHAPUS #}
                 </div>
             </div>
         </div>
 
         <div class="fixed-footer">
+            {# GANTI IKON MENU DARI BARS KE PLUS DAN HILANGKAN SPAN #}
             <a href="#" class="nav-icon" id="menu-toggle">
-                <i class="fas fa-bars"></i>
-                <span>Menu</span>
-            </a>
+                <i class="fas fa-plus"></i>
+                </a>
+            
+            {# HILANGKAN SPAN #}
             <a href="#" id="grid-toggle" class="nav-icon">
                 <i class="fas fa-th-large"></i>
-                <span id="view-label">Grid</span>
-            </a>
+                <span id="view-label" style="display:none;">Grid</span> </a>
             
             {% if path != root_path %}
+            {# HILANGKAN SPAN #}
             <a href="/?path={{ root_path }}" class="nav-icon">
                 <i class="fas fa-home"></i>
-                <span>Home</span>
-            </a>
+                </a>
             {% endif %}
             
-            {# TOMBOL KEMBALI #}
+            {# TOMBOL KEMBALI - HILANGKAN SPAN #}
             {% if path != root_path %}
             <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
-                <span>Kembali</span>
-            </a>
+                </a>
             {% endif %}
 
-            {# TOMBOL DUNIA/BROWSER #}
+            {# TOMBOL DUNIA/BROWSER - HILANGKAN SPAN #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
-                <span>Browser</span>
-            </a>
+                </a>
         </div>
     </div>
 
@@ -386,7 +384,7 @@
         document.addEventListener('DOMContentLoaded', function() {
             const fileList = document.getElementById('file-list');
             const gridToggle = document.getElementById('grid-toggle');
-            const viewLabel = document.getElementById('view-label');
+            const viewLabel = document.getElementById('view-label'); // Tetap diperlukan untuk JS
             const backButton = document.getElementById('back-button');
             const browserLink = document.getElementById('browser-link');
             
@@ -395,7 +393,7 @@
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
 
-            // Item menu dummy: Mengambil SEMUA DIV di menu-list
+            // Item menu DUMMY: Mengambil SEMUA DIV di menu-list
             const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
             
             // --- 1. Fungsi Toggle Grid ---
@@ -404,11 +402,13 @@
             const setView = (isGrid) => {
                 if (isGrid) {
                     fileList.classList.add('grid-view');
+                    // Perbarui ikon ke List
                     gridToggle.querySelector('i').className = 'fas fa-list fa-fw';
                     viewLabel.textContent = 'List';
                     sessionStorage.setItem('viewMode', 'grid');
                 } else {
                     fileList.classList.remove('grid-view');
+                    // Perbarui ikon ke Grid
                     gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
                     viewLabel.textContent = 'Grid';
                     sessionStorage.setItem('viewMode', 'list');
@@ -459,11 +459,11 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY ---
+            // --- 4. Event listener Menu Item DUMMY (hanya yang ada) ---
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
-                    // Item menu klik tidak menutup modal.
+                    // Logika untuk Alternatif Cloud dan Tambah Folder Baru (jika ada) akan ditempatkan di sini.
                 });
             });
             
