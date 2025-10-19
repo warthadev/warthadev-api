@@ -343,8 +343,8 @@
                     <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
                     <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
                     <div class="menu-item" id="delete-item"><i class="fas fa-trash-alt"></i> Hapus Folder atau File</div>
-                    <div class="menu-item" id="download-item"><i class="fas fa-download"></i> Download</div>
-                    <div class="menu-item" id="upload-item"><i class="fas fa-upload"></i> Upload</div>
+                    
+                    {# DOWNLOAD DAN UPLOAD TELAH DIHAPUS #}
                 </div>
             </div>
         </div>
@@ -374,7 +374,7 @@
             </a>
             {% endif %}
 
-            {# TOMBOL DUNIA/BROWSER BARU #}
+            {# TOMBOL DUNIA/BROWSER #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
                 <span>Browser</span>
@@ -388,7 +388,7 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
-            const browserLink = document.getElementById('browser-link'); // Tombol Browser/Dunia
+            const browserLink = document.getElementById('browser-link');
             
             // Elemen Menu
             const menuToggle = document.getElementById('menu-toggle');
@@ -459,7 +459,7 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY (Tidak Melakukan Apa-apa, Modal Tetap Terbuka) ---
+            // --- 4. Event listener Menu Item DUMMY ---
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
@@ -467,7 +467,7 @@
                 });
             });
             
-            // --- 5. Event listener untuk File Klik ---
+            // --- 5. Event listener untuk File Klik (Buka/Download) ---
             document.querySelectorAll('.file-item.file-file').forEach(fileDiv => {
                 fileDiv.addEventListener('click', function() {
                     const fullPath = this.getAttribute('data-path');
@@ -477,10 +477,10 @@
                 });
             });
             
-            // --- 6. Event listener Tombol Browser/Dunia (Tambahan Baru) ---
+            // --- 6. Event listener Tombol Browser/Dunia (Tidak Ada Aksi) ---
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                // TIDAK ADA aksi lanjutan di sini, hanya mencegah navigasi default.
+                // Tidak ada aksi lanjutan di sini.
             });
 
 
