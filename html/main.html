@@ -77,7 +77,7 @@
             {% endfor %}
         </div>
         
-        {# --- MENU OVERLAY DENGAN ITEM YANG DIMINTA SAJA --- #}
+        {# --- MENU OVERLAY --- #}
         <div id="menu-overlay">
             <div class="menu-modal">
                 <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
@@ -93,26 +93,31 @@
         </div>
 
         <div class="fixed-footer">
+            {# Tombol Plus/Delete #}
             <a href="#" class="nav-icon" id="menu-toggle">
                 <i class="fas fa-plus"></i>
                 </a>
             
+            {# Tombol Grid/List Toggle #}
             <a href="#" id="grid-toggle" class="nav-icon">
                 <i class="fas fa-th-large"></i>
                 <span id="view-label" style="display:none;">Grid</span> </a>
             
             {% if path != root_path %}
+            {# Tombol Home #}
             <a href="/?path={{ root_path }}" class="nav-icon">
                 <i class="fas fa-home"></i>
                 </a>
             {% endif %}
             
+            {# Tombol Kembali #}
             {% if path != root_path %}
             <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
                 </a>
             {% endif %}
 
+            {# Tombol Dunia/Browser (Berubah menjadi Hamburger saat Seleksi) #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
                 </a>
@@ -125,40 +130,39 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label'); 
             const backButton = document.getElementById('back-button');
-            const browserLink = document.getElementById('browser-link');
-            const fileItems = document.querySelectorAll('.file-item, .file-folder'); // Pilih semua item
-            
-            // Elemen Menu
             const menuToggle = document.getElementById('menu-toggle');
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
             const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
+            const browserLink = document.getElementById('browser-link'); // Ambil elemen browser
+            const fileItems = document.querySelectorAll('.file-item, .file-folder');
             
-            // Variabel untuk fitur baru
             let pressTimer;
-            const LONG_PRESS_THRESHOLD = 500; // 500ms dianggap tekan lama
+            const LONG_PRESS_THRESHOLD = 500; 
             let isSelecting = false;
             
-            // --- NONAKTIFKAN CONTEXT MENU MOBILE (TEKAN LAMA) ---
+            // --- 1. NONAKTIFKAN CONTEXT MENU MOBILE (TEKAN LAMA) ---
             document.addEventListener('contextmenu', function(e) {
-                // Nonaktifkan menu kontekstual bawaan browser pada perangkat sentuh
                 if ('ontouchstart' in window) { 
                      e.preventDefault();
                 }
             });
 
-            // --- FUNGSI SELEKSI ---
+            // --- 2. FUNGSI SELEKSI ---
+
             function updateSelectionCount() {
                 const count = document.querySelectorAll('.file-item.selected').length;
-                const selectionAction = document.getElementById('selection-copy'); // Contoh: Salin
+                const selectionCopyAction = document.getElementById('selection-copy');
                 
                 if (count > 0) {
-                    selectionAction.textContent = `Salin (${count})`;
-                    selectionAction.style.display = 'flex';
+                    selectionCopyAction.textContent = `Salin (${count})`;
+                    selectionCopyAction.style.display = 'flex';
+                    // Pastikan mode seleksi tetap aktif jika ada yang terpilih
+                    if (!isSelecting) toggleSelectionMode(true); 
                 } else {
-                    selectionAction.style.display = 'none';
+                    selectionCopyAction.style.display = 'none';
+                    // Jika tidak ada yang terpilih, keluar dari mode seleksi
                     if (isSelecting) {
-                        // Jika tidak ada yang terpilih, keluar dari mode seleksi
                         toggleSelectionMode(false);
                     }
                 }
@@ -167,11 +171,21 @@
             // Fungsi untuk mengaktifkan/menonaktifkan mode seleksi
             function toggleSelectionMode(enable) {
                 isSelecting = enable;
-                // Anda bisa mengubah ikon menu toggle menjadi tanda "X" atau ikon "Delete" di sini
+                
+                // Ubah ikon tombol PLUS menjadi DELETE
                 if (enable) {
                     menuToggle.querySelector('i').className = 'fas fa-trash';
                 } else {
                     menuToggle.querySelector('i').className = 'fas fa-plus';
+                    // Hapus semua seleksi saat keluar mode
+                    document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
+                }
+
+                // Ubah ikon tombol BROWSER menjadi HAMBURGER
+                if (enable) {
+                    browserLink.querySelector('i').className = 'fas fa-bars'; 
+                } else {
+                    browserLink.querySelector('i').className = 'fas fa-globe';
                 }
             }
             
@@ -181,91 +195,77 @@
                 updateSelectionCount();
             }
 
-            // Tambahkan event listener untuk semua file items
+            // --- 3. EVENT LONG PRESS/KLIK (UNTUK SEMUA ITEM) ---
             fileItems.forEach(item => {
                 
-                // --- 1. Event Utama: Mulai Timer ---
                 const startPress = (e) => {
-                    // Hanya deteksi long press jika bukan folder yang sedang diklik (di List View)
-                    const isFolderLink = item.tagName === 'A';
-                    
-                    // Hentikan timer yang mungkin sedang berjalan
                     clearTimeout(pressTimer); 
                     
                     pressTimer = setTimeout(() => {
-                        // Jika mode seleksi belum aktif, aktifkan mode seleksi
                         if (!isSelecting) {
-                             e.preventDefault(); // Mencegah navigasi link (penting untuk folder di List View)
+                             e.preventDefault(); 
                              toggleSelectionMode(true);
                              toggleItemSelection(item); 
                         }
                     }, LONG_PRESS_THRESHOLD);
                 };
                 
-                // --- 2. Event Berhenti: Hapus Timer ---
                 const stopPress = (e) => {
                     clearTimeout(pressTimer);
                 };
 
-                // --- 3. Event Klik Normal/Tap ---
                 const normalAction = (e) => {
                     if (isSelecting) {
-                        e.preventDefault(); // Mencegah navigasi normal (link folder atau download file)
+                        e.preventDefault(); 
                         toggleItemSelection(item);
                     } else if (pressTimer) {
-                        // Jika klik cepat dan bukan mode seleksi, biarkan aksi default (navigasi/download)
                         clearTimeout(pressTimer);
                     }
-                    // Jika itu link folder, biarkan klik normal memicu navigasi jika tidak dalam mode seleksi
+                    // Jika bukan mode seleksi, biarkan default (navigasi/download)
                 };
 
-                // --- MOBILE (Touch Events) ---
+                // MOBILE (Touch Events)
                 item.addEventListener('touchstart', startPress);
                 item.addEventListener('touchend', stopPress);
                 item.addEventListener('touchcancel', stopPress);
-                // Menggunakan 'click' untuk menangani tap yang berhasil melewati long press check
                 item.addEventListener('click', normalAction); 
 
-                // --- DESKTOP (Mouse Events) ---
+                // DESKTOP (Mouse Events)
                 item.addEventListener('mousedown', startPress);
                 item.addEventListener('mouseup', stopPress);
                 item.addEventListener('mouseleave', stopPress);
                 
-                // Mencegah menu kontekstual bawaan browser muncul saat klik kanan desktop
+                // Menonaktifkan context menu (klik kanan) jika mode seleksi aktif
                 item.addEventListener('contextmenu', (e) => {
-                    // Jika mode seleksi sudah aktif, klik kanan akan memunculkan menu seleksi
                     if (isSelecting) {
-                         e.preventDefault(); // Menonaktifkan context menu (klik kanan)
+                         e.preventDefault(); 
                          // Di sini Anda bisa memunculkan menu aksi seleksi custom
                     }
-                    // Jika mode seleksi tidak aktif, biarkan klik kanan bawaan browser (seperti yang diminta)
                 });
             });
 
-            // Tambahkan event listener global untuk keluar dari mode seleksi (klik di luar)
+            // --- 4. KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
             document.addEventListener('click', function(e) {
-                // Keluar dari mode seleksi jika mengklik di luar .file-item dan bukan di menu overlay
-                if (isSelecting && !e.target.closest('.file-item') && !e.target.closest('#menu-overlay') && !e.target.closest('#menu-toggle')) {
+                if (isSelecting && !e.target.closest('.file-item') && !e.target.closest('#menu-overlay') && !e.target.closest('#menu-toggle') && !e.target.closest('#browser-link')) {
                     toggleSelectionMode(false);
-                    document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
-                    updateSelectionCount();
+                    updateSelectionCount(); // Ini akan membersihkan seleksi
                 }
             });
 
 
-            // --- 4. Fungsi Toggle Grid (Kode Anda) ---
+            // --- 5. FUNGSI FOOTER NAVIGASI & MENU ---
+
+            // Toggle Grid/List
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
             const setView = (isGrid) => {
                 if (isGrid) {
                     fileList.classList.add('grid-view');
                     gridToggle.querySelector('i').className = 'fas fa-list fa-fw';
-                    viewLabel.textContent = 'List';
                     sessionStorage.setItem('viewMode', 'grid');
                 } else {
                     fileList.classList.remove('grid-view');
                     gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
-                    viewLabel.textContent = 'Grid';
                     sessionStorage.setItem('viewMode', 'list');
                 }
             };
@@ -277,7 +277,7 @@
                 setView(isGridView);
             });
 
-            // --- 5. Fungsi Tombol Kembali (Kode Anda) ---
+            // Tombol Kembali
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -285,7 +285,7 @@
                 });
             }
 
-            // --- 6. Fungsi Menu Overlay (Kode Anda) ---
+            // Menu Overlay
             const toggleMenu = (show) => {
                 if (show) {
                     menuOverlay.style.display = 'flex';
@@ -296,20 +296,35 @@
                 }
             };
 
+            // Tombol PLUS/DELETE
             menuToggle.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Jika dalam mode seleksi, menu toggle menjadi tombol aksi (misal: Delete)
                 if (isSelecting) {
-                    alert("Aksi Hapus Item Terpilih!");
-                    // Tambahkan logika delete di sini
+                    // Aksi DELETE
+                    if (confirm(`Yakin ingin menghapus ${document.querySelectorAll('.file-item.selected').length} item yang terpilih?`)) {
+                        alert("Aksi Hapus Item Terpilih dijalankan!");
+                        // Tambahkan logika delete di sini
+                    }
+                    // Keluar mode seleksi setelah aksi
                     toggleSelectionMode(false);
-                    document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
                     updateSelectionCount();
                 } else {
+                    // Aksi MENU QUICK (Tambah Folder, Cloud)
                     toggleMenu(true);
                 }
             });
+            
+            // Tombol BROWSER/HAMBURGER
+            browserLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                if (isSelecting) {
+                    // Jika dalam mode seleksi, buka Menu Overlay (Burger Menu Action)
+                    toggleMenu(true);
+                } 
+                // Jika tidak dalam mode seleksi (ikon Globe), biarkan aksi default (e.preventDefault() sudah ada)
+            });
 
+            // Menutup Menu
             closeMenuButton.addEventListener('click', function() {
                 toggleMenu(false);
             });
@@ -320,7 +335,7 @@
                 }
             });
             
-            // --- 7. Event listener Menu Item DUMMY (Kode Anda) ---
+            // Aksi Menu Item
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
@@ -330,13 +345,12 @@
                     if (item.id === 'alternatif-cloud') {
                         alert("Alternatif Cloud dipanggil!");
                     }
+                    if (item.id === 'selection-copy' && isSelecting) {
+                        alert("Aksi Salin Item Terpilih dipanggil!");
+                        // Tambahkan logika Copy di sini
+                    }
                     toggleMenu(false);
                 });
-            });
-            
-            // --- 8. Event listener Tombol Browser/Dunia (Kode Anda) ---
-            browserLink.addEventListener('click', function(e) {
-                e.preventDefault();
             });
 
         });
