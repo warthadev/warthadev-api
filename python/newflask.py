@@ -4,11 +4,18 @@ import os, subprocess, re, time
 from flask import Flask, render_template_string, send_file, request
 from threading import Thread
 
+# Import run_simple dari Werkzeug untuk kontrol logging yang lebih baik
+from werkzeug.serving import run_simple 
+import logging
+
+# Nonaktifkan logging Flask/Werkzeug yang tidak perlu
+log = logging.getLogger('werkzeug')
+log.setLevel(logging.ERROR) # Hanya tampilkan ERROR, bukan INFO
+
 # Config Awal (Akan ditimpa/di-inject nilainya oleh Colab)
 ROOT_PATH = "/content" 
 PORT = 8000
 DECRYPTION_SUCCESS = False 
-# Variabel konfigurasi tambahan yang di-inject (ditambahkan untuk menghindari NameError di fungsi lain jika diperlukan)
 FIREBASE_CONFIG = None
 CLOUDFLARE_CONFIG = None
 PEM_BYTES = None
@@ -81,8 +88,15 @@ def open_file():
 def run_flask_and_tunnel():
     
     def run_flask():
-        # Menggunakan quiet=True untuk menghilangkan output Werkzeug (* Serving Flask...)
-        app.run(host="0.0.0.0", port=PORT, threaded=True, quiet=True) 
+        # Menggunakan run_simple untuk kompatibilitas logging yang lebih baik
+        # parameter 'use_reloader=False' dan 'threaded=True' diperlukan
+        # logging hanya di set ke ERROR di awal skrip
+        try:
+            run_simple('0.0.0.0', PORT, app, use_reloader=False, threaded=True)
+        except Exception as e:
+            # Catch error dari thread agar tidak mengganggu thread utama
+            print(f"Flask execution error: {e}")
+
     Thread(target=run_flask, daemon=True).start()
 
     # Log minimalis untuk cloudflared
@@ -100,17 +114,17 @@ def run_flask_and_tunnel():
     for _ in range(30):
         line = proc.stdout.readline()
         if line:
-            # Tidak mencetak log cloudflared, hanya mencari URL
-            # print(line.strip()) # Di-disable
+            # Log minimalis cloudflared, hanya untuk debugging jika gagal
+            # Anda bisa mengaktifkan baris ini untuk melihat log cloudflared jika tunnel gagal
+            # print(line.strip()) 
             m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
             if m:
                 public_url = m.group(1)
                 break
         time.sleep(1)
         
-    # Output Akhir yang Sederhana
+    # Output Akhir yang Sederhana (Hanya URL atau pesan error)
     if public_url:
         print(public_url)
     else:
-        # Jika gagal, tampilkan pesan error yang minimal
         print("Gagal mendapatkan URL Cloudflare.")
