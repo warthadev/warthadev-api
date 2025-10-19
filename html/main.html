@@ -123,10 +123,10 @@
             const fileList = document.getElementById('file-list');
             const gridToggle = document.getElementById('grid-toggle');
             const backButton = document.getElementById('back-button');
-            const menuToggle = document.getElementById('menu-toggle'); // Tombol Plus
+            const menuToggle = document.getElementById('menu-toggle'); 
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
-            const browserLink = document.getElementById('browser-link'); // Tombol Dunia/Hamburger
+            const browserLink = document.getElementById('browser-link'); 
             const fileItems = document.querySelectorAll('.file-item, .file-folder');
             const menuModal = document.querySelector('.menu-modal');
 
@@ -155,7 +155,7 @@
                     case 'selection-all':
                         fileItems.forEach(item => item.classList.add('selected'));
                         updateSelectionCount();
-                        return; // Jangan keluar mode seleksi
+                        return; 
                     case 'selection-slideshow':
                         message = `Memulai Slideshow untuk ${count} gambar!`;
                         break;
@@ -196,62 +196,38 @@
                 
                 let allImages = count > 0;
                 let isSingleCompress = count === 1;
-                let isPasteAction = false; // Asumsi: Atur ini berdasarkan status clipboard
                 
                 selectedItems.forEach(item => {
                     const isFile = item.classList.contains('file-file');
                     const path = item.getAttribute('data-path') || '';
                     
-                    // Cek format gambar
-                    if (isFile && !/\.(jpe?g|png|gif|webp)$/i.test(path)) {
-                        allImages = false;
-                    }
-                    // Cek format kompresi
-                    if (isFile && !/\.(zip|rar|7z|tar\.gz)$/i.test(path)) {
-                        isSingleCompress = false;
-                    }
-                    
-                    // Jika ada folder di seleksi, Slideshow dan Extract pasti salah
-                    if (!isFile) {
-                         allImages = false;
-                         isSingleCompress = false;
-                    }
-                    
-                    if (count > 1) {
-                        isSingleCompress = false;
-                    }
+                    // Pengecekan Kondisional
+                    if (isFile && !/\.(jpe?g|png|gif|webp)$/i.test(path)) { allImages = false; }
+                    if (isFile && !/\.(zip|rar|7z|tar\.gz)$/i.test(path)) { isSingleCompress = false; }
+                    if (!isFile || count > 1) { isSingleCompress = false; }
+                    if (!isFile) { allImages = false; }
                 });
 
                 // --- REGENERASI ISI MENU HAMBURGER (Kondisional) ---
                 menuList.innerHTML = '';
-                
                 const selectionActions = [];
                 
-                // Item Kondisional (Slideshow)
-                if (allImages) {
-                     selectionActions.push({ id: 'selection-slideshow', icon: 'fas fa-images', label: `Slideshow (${count})` });
-                }
+                if (allImages) { selectionActions.push({ id: 'selection-slideshow', icon: 'fas fa-images', label: `Slideshow (${count})` }); }
                 
-                // Item Umum
                 selectionActions.push(
                     { id: 'selection-all', icon: 'fas fa-check-double', label: `Pilih Semua` },
                     { id: 'selection-copy', icon: 'fas fa-copy', label: `Salin (${count})` },
                     { id: 'selection-move', icon: 'fas fa-external-link-alt', label: `Pindahkan` }
-                    // Tambahkan Paste hanya jika ada item di clipboard (logic di luar scope)
-                    // { id: 'selection-paste', icon: 'fas fa-paste', label: `Tempel` }, 
                 );
                 
-                // Item Compress
                 if (count > 0) {
                      selectionActions.push({ id: 'selection-compress', icon: 'fas fa-file-archive', label: `Compress (${count})` });
                 }
                 
-                // Item Extract Kondisional
                 if (isSingleCompress) {
                      selectionActions.push({ id: 'selection-extract', icon: 'fas fa-file-export', label: `Extract` });
                 }
                 
-                // Item Delete (Selalu ada jika ada yang terpilih)
                 if (count > 0) {
                      selectionActions.push({ id: 'selection-delete', icon: 'fas fa-trash', label: `Hapus (${count})` });
                 }
@@ -279,7 +255,7 @@
                     if (!isSelecting) {
                         toggleSelectionMode(true);
                     }
-                    updateSelectionMenu(); // Selalu perbarui menu agar counter di 'Salin (X)' benar
+                    updateSelectionMenu(); 
                 } else {
                     if (isSelecting) {
                         toggleSelectionMode(false);
@@ -290,7 +266,7 @@
             function toggleSelectionMode(enable) {
                 isSelecting = enable;
                 
-                // PERMINTAAN #1: Tombol Plus TIDAK berubah.
+                // Ikon Plus TIDAK berubah.
                 menuToggle.querySelector('i').className = 'fas fa-plus'; 
                 
                 // Ubah ikon tombol BROWSER/DUNIA menjadi HAMBURGER atau kembali
@@ -298,7 +274,6 @@
                     browserLink.querySelector('i').className = 'fas fa-bars'; 
                 } else {
                     browserLink.querySelector('i').className = 'fas fa-globe';
-                    // Hapus semua seleksi saat keluar mode
                     document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
                 }
             }
@@ -319,6 +294,7 @@
                              e.preventDefault(); 
                              toggleSelectionMode(true);
                              toggleItemSelection(item); 
+                             // TIDAK ADA toggleMenu(true) di sini.
                         }
                     }, LONG_PRESS_THRESHOLD);
                 };
@@ -348,7 +324,7 @@
                 item.addEventListener('contextmenu', (e) => {
                     if (isSelecting) {
                          e.preventDefault(); 
-                         toggleMenu(true); // Klik kanan (desktop) membuka menu aksi
+                         // Cegah default browser, tapi tidak panggil modal.
                     }
                 });
             });
@@ -376,7 +352,6 @@
                     gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
                     sessionStorage.setItem('viewMode', 'list');
                 }
-                // PERMINTAAN #2: Seleksi tetap ada saat ganti view (sudah terpenuhi karena tidak ada reset)
             };
             setView(isGridView);
 
@@ -399,11 +374,11 @@
                 if (show) {
                     menuOverlay.style.display = 'flex';
                     if (isSelecting) {
-                        // Jika mode seleksi, tampilkan menu aksi seleksi
+                        // Modal Aksi Seleksi (dipanggil oleh Hamburger)
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Seleksi';
                         updateSelectionMenu(); 
                     } else {
-                        // Jika mode normal, tampilkan menu cepat default
+                        // Modal Aksi Cepat (dipanggil oleh Tombol Plus)
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Cepat';
                         menuModal.querySelector('.menu-list').innerHTML = `
                              <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
@@ -428,15 +403,14 @@
             // Tombol PLUS (Menu Cepat)
             menuToggle.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Selalu membuka Menu Cepat (non-seleksi)
                 toggleMenu(true);
             });
             
-            // Tombol BROWSER/HAMBURGER
+            // Tombol BROWSER/HAMBURGER (Menu Aksi Seleksi)
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (isSelecting) {
-                    // Jika dalam mode seleksi, buka Menu Aksi Seleksi (Hamburger)
+                    // HANYA DI SINI MODAL AKSI SELEKSI DIPANGGIL
                     toggleMenu(true);
                 } 
             });
