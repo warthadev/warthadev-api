@@ -231,8 +231,8 @@
             align-items: center;
         }
 
-        /* Set semua item menu (kecuali link Telegram) agar tidak navigasi */
-        .menu-item:not(a) { 
+        /* Set semua item menu agar terlihat seragam */
+        .menu-item { 
             padding: 12px 10px;
             border-bottom: 1px solid #f8f9fa;
             cursor: pointer;
@@ -293,7 +293,6 @@
                     {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
                 {% endif %}
 
-                {# PENTING: Menggunakan f['icon_class'] yang baru dari Python #}
                 {% set icon_class = f['icon_class'] %}
                 
                 {% if f['is_dir'] %}
@@ -337,7 +336,10 @@
             <div class="menu-modal">
                 <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
                 <div class="menu-list">
-                    <a href="/telegram/config" class="menu-item" id="config-telegram-link"><i class="fab fa-telegram-plane"></i> Telegram Konfigurasi</a>
+                    
+                    {# MENGGANTIKAN TELEGRAM CONFIG DENGAN ALTERNATIF CLOUD #}
+                    <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
+                    
                     <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
                     <div class="menu-item" id="move-item"><i class="fas fa-arrows-alt"></i> Pindah Folder atau File</div>
                     <div class="menu-item" id="copy-item"><i class="fas fa-copy"></i> Salin Folder atau File</div>
@@ -365,12 +367,19 @@
             </a>
             {% endif %}
             
+            {# TOMBOL KEMBALI #}
             {% if path != root_path %}
             <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
                 <span>Kembali</span>
             </a>
             {% endif %}
+
+            {# TOMBOL DUNIA/BROWSER BARU #}
+            <a href="#" id="browser-link" class="nav-icon">
+                <i class="fas fa-globe"></i>
+                <span>Browser</span>
+            </a>
         </div>
     </div>
 
@@ -380,15 +389,15 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
+            const browserLink = document.getElementById('browser-link'); // Tombol baru
             
-            // Elemen Menu Baru
+            // Elemen Menu
             const menuToggle = document.getElementById('menu-toggle');
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
 
-            // Item menu dummy: Mengambil DIV yang merupakan menu item (bukan link Telegram)
-            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item:not(a)');
-            const configTelegramLink = document.getElementById('config-telegram-link');
+            // Item menu dummy: Mengambil SEMUA DIV di menu-list
+            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
             
             // --- 1. Fungsi Toggle Grid ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
@@ -426,11 +435,9 @@
             const toggleMenu = (show) => {
                 if (show) {
                     menuOverlay.style.display = 'flex';
-                    // Tambahkan kelas untuk animasi
                     setTimeout(() => menuOverlay.classList.add('active'), 10); 
                 } else {
                     menuOverlay.classList.remove('active');
-                    // Tunggu sebentar sebelum display: none agar animasi selesai
                     setTimeout(() => menuOverlay.style.display = 'none', 300);
                 }
             };
@@ -457,7 +464,7 @@
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
-                    // Tidak ada kode penutup di sini, modal tetap terbuka
+                    // Item menu klik tidak menutup modal.
                 });
             });
             
@@ -470,11 +477,14 @@
                     }
                 });
             });
-
-            // Event listener KHUSUS untuk link Telegram (Menutup modal karena akan navigasi)
-            configTelegramLink.addEventListener('click', function() {
-                setTimeout(() => toggleMenu(false), 50); 
+            
+            // --- 6. Event listener Tombol Browser/Dunia (Tambahan Baru) ---
+            browserLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Aksi default: Buka link '/' di tab baru (atau ganti dengan URL browser yang sebenarnya)
+                window.open('/', '_blank');
             });
+
 
         });
     </script>
