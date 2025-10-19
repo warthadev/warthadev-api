@@ -231,7 +231,8 @@
             align-items: center;
         }
 
-        .menu-item {
+        /* Set semua item menu (kecuali link Telegram) agar tidak navigasi */
+        .menu-item:not(a) { 
             padding: 12px 10px;
             border-bottom: 1px solid #f8f9fa;
             cursor: pointer;
@@ -292,7 +293,8 @@
                     {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
                 {% endif %}
 
-                {% set icon_class = "fa-folder" if f['is_dir'] else "fa-file-alt" %}
+                {# PENTING: Menggunakan f['icon_class'] yang baru dari Python #}
+                {% set icon_class = f['icon_class'] %}
                 
                 {% if f['is_dir'] %}
                     <a href="/?path={{ target_path }}" class="file-item file-folder">
@@ -384,8 +386,8 @@
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
 
-            // Item menu dummy
-            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item:not(a)'); // Ambil item yang BUKAN link <a>
+            // Item menu dummy: Mengambil DIV yang merupakan menu item (bukan link Telegram)
+            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item:not(a)');
             const configTelegramLink = document.getElementById('config-telegram-link');
             
             // --- 1. Fungsi Toggle Grid ---
@@ -451,22 +453,17 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY (Tanpa Alert) ---
-            // Event listener dummy untuk opsi menu yang BELUM diimplementasikan
-            // Sekarang hanya menutup modal, tanpa alert
+            // --- 4. Event listener Menu Item DUMMY (Tidak Melakukan Apa-apa, Modal Tetap Terbuka) ---
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
-                    // Baris alert sebelumnya dihapus di sini
-                    toggleMenu(false); 
+                    // Tidak ada kode penutup di sini
                 });
             });
             
             // --- 5. Event listener untuk File Klik ---
-            // Mengatasi kasus file yang bukan link <a>
             document.querySelectorAll('.file-item.file-file').forEach(fileDiv => {
                 fileDiv.addEventListener('click', function() {
-                    // Menggunakan data-path (yang baru ditambahkan di HTML di atas)
                     const fullPath = this.getAttribute('data-path');
                     if (fullPath) {
                         window.location.href = '/file?path=' + encodeURIComponent(fullPath);
@@ -474,8 +471,8 @@
                 });
             });
 
-            // Event listener KHUSUS untuk link Telegram (untuk menutup modal sebelum navigasi)
-            configTelegramLink.addEventListener('click', function(e) {
+            // Event listener KHUSUS untuk link Telegram (Menutup modal karena akan navigasi)
+            configTelegramLink.addEventListener('click', function() {
                 setTimeout(() => toggleMenu(false), 50); 
             });
 
