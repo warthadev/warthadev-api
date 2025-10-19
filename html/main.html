@@ -337,7 +337,6 @@
                 <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
                 <div class="menu-list">
                     
-                    {# MENGGANTIKAN TELEGRAM CONFIG DENGAN ALTERNATIF CLOUD #}
                     <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
                     
                     <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
@@ -389,7 +388,7 @@
             const gridToggle = document.getElementById('grid-toggle');
             const viewLabel = document.getElementById('view-label');
             const backButton = document.getElementById('back-button');
-            const browserLink = document.getElementById('browser-link'); // Tombol baru
+            const browserLink = document.getElementById('browser-link'); // Tombol Browser/Dunia
             
             // Elemen Menu
             const menuToggle = document.getElementById('menu-toggle');
@@ -481,8 +480,7 @@
             // --- 6. Event listener Tombol Browser/Dunia (Tambahan Baru) ---
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                // Aksi default: Buka link '/' di tab baru (atau ganti dengan URL browser yang sebenarnya)
-                window.open('/', '_blank');
+                // TIDAK ADA aksi lanjutan di sini, hanya mencegah navigasi default.
             });
 
 
