@@ -31,9 +31,9 @@ a { text-decoration: none; color: inherit; }
     padding: 8px 15px; 
     border-radius: 4px; 
     font-size: 0.9em; 
-    white-space: nowrap; /* Mencegah pemotongan baris di tengah path */
+    white-space: nowrap;
     overflow: hidden;
-    text-overflow: ellipsis; /* Tampilkan ... di akhir */
+    text-overflow: ellipsis;
 }
 
 .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
@@ -49,10 +49,10 @@ a { text-decoration: none; color: inherit; }
     align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
-    transition: background-color 0.2s, border 0.2s; /* Tambah transisi border */
+    transition: background-color 0.2s, border 0.2s;
     cursor: default; 
     position: relative;
-    border: 1px solid transparent; /* Border transparan default */
+    border: 1px solid transparent; 
 }
 .file-item:hover {
     background-color: #f8f9fa; 
@@ -60,11 +60,11 @@ a { text-decoration: none; color: inherit; }
 }
 .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
 
-/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal (menggunakan Flexbox) */
+/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal */
 .file-text-container { 
     flex: 1; 
     overflow: hidden; 
-    display: flex; /* Diubah ke flex */
+    display: flex;
     align-items: center;
     justify-content: space-between;
     min-width: 0;
@@ -74,13 +74,13 @@ a { text-decoration: none; color: inherit; }
     font-weight: 500; 
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis; /* Teks nama file terpotong rapi */
+    text-overflow: ellipsis; 
     white-space: nowrap;
 }
 .file-size { 
     font-size: 0.8em; 
     color: #6c757d; 
-    margin-left: auto; /* Mendorong ke kanan */
+    margin-left: auto;
     padding-left: 15px; 
     white-space: nowrap;
 }
@@ -90,11 +90,15 @@ a { text-decoration: none; color: inherit; }
     display: none;
 }
 
-/* --- STYLE UNTUK SELEKSI BARU --- */
+/* --- STYLE UNTUK SELEKSI BARU (DITINGKATKAN UNTUK KONSISTENSI) --- */
 .file-item.selected {
-    background-color: #e2f0ff; /* Warna latar belakang untuk item terpilih */
-    border: 1px solid #007bff; /* Border biru untuk penekanan */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
+    /* Style Dasar Seleksi (List View akan menggunakan ini) */
+    background-color: #e2f0ff !important; 
+    border: 1px solid #007bff !important; 
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.4);
+}
+.file-item.selected i {
+    color: #007bff !important; /* Agar ikon lebih menonjol saat terpilih */
 }
 
 /* --- GRID VIEW STYLES --- */
@@ -113,10 +117,14 @@ a { text-decoration: none; color: inherit; }
     text-align: center;      
     border-radius: 8px;
     overflow: hidden; 
-    border: 1px solid #ddd; /* Border default di grid */
+    border: 1px solid #ddd;
+    background-color: white; 
 }
+
+/* KUNCI PERBAIKAN: Seleksi di Grid View */
 .file-list.grid-view .file-item.selected {
-     border: 2px solid #007bff; /* Border sedikit lebih tebal saat terpilih di grid */
+     border: 3px solid #007bff !important; 
+     background-color: #e2f0ff !important;
 }
 
 /* Sembunyikan Teks List View di Grid View */
