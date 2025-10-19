@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Colab FS</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"> 
+    
+    </head>
+<body>
+    <div class="container">
+
+        <div class="info-header">
+            
+            <div class="disk-bar-wrapper">
+                
+                <div class="disk-item">
+                    <strong>Colab ({{ format_size(colab_used) }} / {{ format_size(colab_total) }}):</strong>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
+                    </div>
+                </div>
+
+                {% if drive_total > 0 %}
+                <div class="disk-item">
+                    <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
+                    <div class="progress-bar">
+                        <div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div>
+                    </div>
+                </div>
+                {% endif %}
+            </div>
+
+            <div class="current-path"><strong>Path:</strong> <code>{{ path }}</code></div>
+        </div>
+
+        <div id="file-list" class="file-list">
+            {% for f in files %}
+                {% set target_path = f['full_path'] %}
+                {% if f['is_dir'] and f['full_path'] == drive_mount_path and os_path.exists(os_path.join(drive_mount_path, "MyDrive")) %}
+                    {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
+                {% endif %}
+
+                {% set icon_class = f['icon_class'] %}
+                
+                {% if f['is_dir'] %}
+                    <a href="/?path={{ target_path }}" class="file-item file-folder">
+                        
+                        {# Teks Absolute Grid View #}
+                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
+                        
+                        <i class="fas {{ icon_class }} fa-fw"></i>
+
+                        <span class="file-size-absolute">{{ f['size'] }}</span>
+
+                        {# Kontainer Teks List View #}
+                        <div class="file-text-container">
+                            <span class="file-name">{{ f['name'] }}</span>
+                            <span class="file-size">{{ f['size'] }}</span>
+                        </div>
+                    </a>
+                {% else %}
+                    <div class="file-item file-file" data-path="{{ f['full_path'] }}">
+
+                        {# Teks Absolute Grid View #}
+                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
+                        
+                        <i class="fas {{ icon_class }} fa-fw"></i>
+
+                        <span class="file-size-absolute">{{ f['size'] }}</span>
+
+                        {# Kontainer Teks List View #}
+                        <div class="file-text-container">
+                            <span class="file-name">{{ f['name'] }}</span>
+                            <span class="file-size">{{ f['size'] }}</span>
+                        </div>
+                    </div>
+                {% endif %}
+            {% endfor %}
+        </div>
+        
+        {# --- MENU OVERLAY DENGAN ITEM YANG DIMINTA SAJA --- #}
+        <div id="menu-overlay">
+            <div class="menu-modal">
+                <h3>Menu Aksi Cepat <button class="close-btn" id="close-menu">&times;</button></h3>
+                <div class="menu-list">
+                    
+                    <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
+                    
+                    <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="fixed-footer">
+            {# GANTI IKON MENU DARI BARS KE PLUS DAN HILANGKAN SPAN #}
+            <a href="#" class="nav-icon" id="menu-toggle">
+                <i class="fas fa-plus"></i>
+                </a>
+            
+            {# HILANGKAN SPAN #}
+            <a href="#" id="grid-toggle" class="nav-icon">
+                <i class="fas fa-th-large"></i>
+                <span id="view-label" style="display:none;">Grid</span> </a>
+            
+            {% if path != root_path %}
+            {# HILANGKAN SPAN #}
+            <a href="/?path={{ root_path }}" class="nav-icon">
+                <i class="fas fa-home"></i>
+                </a>
+            {% endif %}
+            
+            {# TOMBOL KEMBALI - HILANGKAN SPAN #}
+            {% if path != root_path %}
+            <a href="#" id="back-button" class="nav-icon">
+                <i class="fas fa-arrow-left"></i>
+                </a>
+            {% endif %}
+
+            {# TOMBOL DUNIA/BROWSER - HILANGKAN SPAN #}
+            <a href="#" id="browser-link" class="nav-icon">
+                <i class="fas fa-globe"></i>
+                </a>
+        </div>
+    </div>
+    
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileList = document.getElementById('file-list');
+            const gridToggle = document.getElementById('grid-toggle');
+            const viewLabel = document.getElementById('view-label'); 
+            const backButton = document.getElementById('back-button');
+            const browserLink = document.getElementById('browser-link');
+            
+            // Elemen Menu
+            const menuToggle = document.getElementById('menu-toggle');
+            const menuOverlay = document.getElementById('menu-overlay');
+            const closeMenuButton = document.getElementById('close-menu');
+
+            // Item menu DUMMY: Mengambil SEMUA DIV di menu-list
+            const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
+            
+            // --- 1. Fungsi Toggle Grid ---
+            let isGridView = sessionStorage.getItem('viewMode') === 'grid';
+            
+            const setView = (isGrid) => {
+                if (isGrid) {
+                    fileList.classList.add('grid-view');
+                    gridToggle.querySelector('i').className = 'fas fa-list fa-fw';
+                    viewLabel.textContent = 'List';
+                    sessionStorage.setItem('viewMode', 'grid');
+                } else {
+                    fileList.classList.remove('grid-view');
+                    gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
+                    viewLabel.textContent = 'Grid';
+                    sessionStorage.setItem('viewMode', 'list');
+                }
+            };
+            setView(isGridView);
+
+            gridToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                isGridView = !isGridView;
+                setView(isGridView);
+            });
+
+            // --- 2. Fungsi Tombol Kembali (history.back) ---
+            if (backButton) {
+                backButton.addEventListener('click', function(e) {
+                    e.preventDefault();
+                    window.history.back();
+                });
+            }
+
+            // --- 3. Fungsi Menu Overlay ---
+            const toggleMenu = (show) => {
+                if (show) {
+                    menuOverlay.style.display = 'flex';
+                    setTimeout(() => menuOverlay.classList.add('active'), 10); 
+                } else {
+                    menuOverlay.classList.remove('active');
+                    setTimeout(() => menuOverlay.style.display = 'none', 300);
+                }
+            };
+
+            // Tampilkan Menu
+            menuToggle.addEventListener('click', function(e) {
+                e.preventDefault();
+                toggleMenu(true);
+            });
+
+            // Sembunyikan Menu
+            closeMenuButton.addEventListener('click', function() {
+                toggleMenu(false);
+            });
+
+            // Sembunyikan Menu saat mengklik luar modal
+            menuOverlay.addEventListener('click', function(e) {
+                if (e.target.id === 'menu-overlay') {
+                    toggleMenu(false);
+                }
+            });
+            
+            // --- 4. Event listener Menu Item DUMMY (hanya yang ada) ---
+            dummyMenuItems.forEach(item => {
+                item.addEventListener('click', function(e) {
+                    e.preventDefault(); 
+                    // Logika untuk Alternatif Cloud dan Tambah Folder Baru (jika ada) akan ditempatkan di sini.
+                });
+            });
+            
+            // --- 5. Event listener untuk File Klik (Buka/Download) ---
+            document.querySelectorAll('.file-item.file-file').forEach(fileDiv => {
+                fileDiv.addEventListener('click', function() {
+                    const fullPath = this.getAttribute('data-path');
+                    if (fullPath) {
+                        window.location.href = '/file?path=' + encodeURIComponent(fullPath);
+                    }
+                });
+            });
+            
+            // --- 6. Event listener Tombol Browser/Dunia (Tidak Ada Aksi) ---
+            browserLink.addEventListener('click', function(e) {
+                e.preventDefault();
+                // Tidak ada aksi lanjutan di sini.
+            });
+
+
+        });
+    </script>
+
+</body>
+</html>
