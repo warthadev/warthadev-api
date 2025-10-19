@@ -127,7 +127,6 @@
             const menuOverlay = document.getElementById('menu-overlay');
             const closeMenuButton = document.getElementById('close-menu');
             const browserLink = document.getElementById('browser-link'); 
-            const fileItems = document.querySelectorAll('.file-item, .file-folder');
             const menuModal = document.querySelector('.menu-modal');
 
             let pressTimer;
@@ -150,12 +149,14 @@
             
             function handleSelectionAction(actionId, count) {
                 let message = '';
-                
+                let shouldCloseModal = true; // Default: tutup modal setelah aksi
+
                 switch(actionId) {
                     case 'selection-all':
-                        fileItems.forEach(item => item.classList.add('selected'));
+                        fileList.querySelectorAll('.file-item').forEach(item => item.classList.add('selected'));
                         updateSelectionCount();
-                        return; 
+                        shouldCloseModal = false; // PERUBAHAN: JANGAN TUTUP MODAL
+                        return; // Keluar dari fungsi karena aksi sudah selesai
                     case 'selection-slideshow':
                         message = `Memulai Slideshow untuk ${count} gambar!`;
                         break;
@@ -184,9 +185,12 @@
                     default:
                         message = `Aksi ${actionId} dipanggil.`;
                 }
+                
                 alert(message);
-                // Keluar mode seleksi setelah aksi selesai (kecuali Pilih Semua)
-                toggleSelectionMode(false); 
+                
+                if (shouldCloseModal) {
+                    toggleSelectionMode(false); 
+                }
             }
 
             function updateSelectionMenu() {
@@ -199,9 +203,8 @@
                 
                 selectedItems.forEach(item => {
                     const isFile = item.classList.contains('file-file');
-                    const path = item.getAttribute('data-path') || '';
+                    const path = item.getAttribute('data-path') || item.getAttribute('href') || '';
                     
-                    // Pengecekan Kondisional
                     if (isFile && !/\.(jpe?g|png|gif|webp)$/i.test(path)) { allImages = false; }
                     if (isFile && !/\.(zip|rar|7z|tar\.gz)$/i.test(path)) { isSingleCompress = false; }
                     if (!isFile || count > 1) { isSingleCompress = false; }
@@ -243,7 +246,9 @@
                     itemDiv.addEventListener('click', (e) => {
                         e.preventDefault();
                         handleSelectionAction(action.id, count);
-                        toggleMenu(false);
+                        if(action.id !== 'selection-all') { // Pengecekan tambahan di sini untuk jaga-jaga
+                           toggleMenu(false);
+                        }
                     });
                 });
             }
@@ -266,10 +271,8 @@
             function toggleSelectionMode(enable) {
                 isSelecting = enable;
                 
-                // Ikon Plus TIDAK berubah.
                 menuToggle.querySelector('i').className = 'fas fa-plus'; 
                 
-                // Ubah ikon tombol BROWSER/DUNIA menjadi HAMBURGER atau kembali
                 if (enable) {
                     browserLink.querySelector('i').className = 'fas fa-bars'; 
                 } else {
@@ -283,51 +286,75 @@
                 updateSelectionCount();
             }
 
-            // --- 3. EVENT LONG PRESS/KLIK (UNTUK SEMUA ITEM) ---
-            fileItems.forEach(item => {
-                
-                const startPress = (e) => {
-                    clearTimeout(pressTimer); 
-                    
-                    pressTimer = setTimeout(() => {
-                        if (!isSelecting) {
-                             e.preventDefault(); 
-                             toggleSelectionMode(true);
-                             toggleItemSelection(item); 
-                             // TIDAK ADA toggleMenu(true) di sini.
-                        }
-                    }, LONG_PRESS_THRESHOLD);
-                };
-                
-                const stopPress = (e) => {
-                    clearTimeout(pressTimer);
-                };
+            // --- 3. EVENT LONG PRESS/KLIK (DELEGATION) ---
+            
+            fileList.addEventListener('touchstart', function(e) {
+                const item = e.target.closest('.file-item');
+                if (!item) return;
 
-                const normalAction = (e) => {
-                    if (isSelecting) {
+                clearTimeout(pressTimer);
+                pressTimer = setTimeout(() => {
+                    if (!isSelecting) {
                         e.preventDefault(); 
-                        toggleItemSelection(item);
-                    } else if (pressTimer) {
-                        clearTimeout(pressTimer);
+                        toggleSelectionMode(true);
+                        toggleItemSelection(item); 
                     }
-                };
-
-                // Event Listeners
-                item.addEventListener('touchstart', startPress);
-                item.addEventListener('touchend', stopPress);
-                item.addEventListener('touchcancel', stopPress);
-                item.addEventListener('click', normalAction); 
-                item.addEventListener('mousedown', startPress);
-                item.addEventListener('mouseup', stopPress);
-                item.addEventListener('mouseleave', stopPress);
-                
-                item.addEventListener('contextmenu', (e) => {
-                    if (isSelecting) {
-                         e.preventDefault(); 
-                         // Cegah default browser, tapi tidak panggil modal.
-                    }
-                });
+                }, LONG_PRESS_THRESHOLD);
             });
+
+            fileList.addEventListener('touchend', function(e) {
+                clearTimeout(pressTimer);
+            });
+            
+            fileList.addEventListener('touchcancel', function(e) {
+                clearTimeout(pressTimer);
+            });
+            
+            fileList.addEventListener('click', function(e) {
+                 const item = e.target.closest('.file-item');
+                 if (!item) return;
+                 
+                 if (isSelecting) {
+                     e.preventDefault(); 
+                     toggleItemSelection(item);
+                 } else if (pressTimer) {
+                     clearTimeout(pressTimer);
+                 }
+            });
+
+            // DESKTOP/Mouse Events
+            fileList.addEventListener('mousedown', function(e) {
+                 const item = e.target.closest('.file-item');
+                 if (!item) return;
+                 
+                 clearTimeout(pressTimer);
+                 pressTimer = setTimeout(() => {
+                     if (!isSelecting) {
+                         e.preventDefault(); 
+                         toggleSelectionMode(true);
+                         toggleItemSelection(item); 
+                     }
+                 }, LONG_PRESS_THRESHOLD);
+            });
+
+            fileList.addEventListener('mouseup', function(e) {
+                clearTimeout(pressTimer);
+            });
+            
+            fileList.addEventListener('mouseleave', function(e) {
+                const item = e.target.closest('.file-item');
+                if (item) clearTimeout(pressTimer);
+            });
+            
+            fileList.addEventListener('contextmenu', (e) => {
+                const item = e.target.closest('.file-item');
+                if (!item) return;
+                
+                if (isSelecting) {
+                     e.preventDefault(); 
+                }
+            });
+
 
             // --- 4. KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
             document.addEventListener('click', function(e) {
@@ -374,17 +401,14 @@
                 if (show) {
                     menuOverlay.style.display = 'flex';
                     if (isSelecting) {
-                        // Modal Aksi Seleksi (dipanggil oleh Hamburger)
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Seleksi';
                         updateSelectionMenu(); 
                     } else {
-                        // Modal Aksi Cepat (dipanggil oleh Tombol Plus)
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Cepat';
                         menuModal.querySelector('.menu-list').innerHTML = `
                              <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
                              <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
                         `;
-                        // Tambahkan event listener untuk item menu cepat
                         menuModal.querySelectorAll('.menu-item').forEach(item => {
                             item.addEventListener('click', function(e) {
                                 e.preventDefault(); 
@@ -410,7 +434,6 @@
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 if (isSelecting) {
-                    // HANYA DI SINI MODAL AKSI SELEKSI DIPANGGIL
                     toggleMenu(true);
                 } 
             });
