@@ -48,47 +48,64 @@ def get_disk_usage(path):
     except Exception:
         return 0, 0, 0.0
 
+def get_directory_size(start_path='.'):
+    """Menghitung total ukuran semua file di dalam direktori secara rekursif."""
+    total_size = 0
+    try:
+        for dirpath, dirnames, filenames in os.walk(start_path):
+            for f in filenames:
+                fp = os.path.join(dirpath, f)
+                # Lewati symbolic link (untuk menghindari loop tak terbatas)
+                if not os.path.islink(fp):
+                    total_size += os.path.getsize(fp)
+    except Exception as e:
+        # Jika ada error izin atau link rusak
+        return -1 # Mengembalikan nilai negatif untuk menandakan error
+    return total_size
+
 def list_dir(path):
-    """Mendaftar file dan folder dengan informasi ukuran."""
+    """Mendaftar file dan folder dengan informasi ukuran (termasuk ukuran folder)."""
     files = []
     try:
         for f in os.listdir(path):
             full_path = os.path.join(path, f)
-            stat = os.stat(full_path)
             
+            # Cek apakah itu symbolic link yang mengarah ke luar root
+            if os.path.islink(full_path) and not os.path.realpath(full_path).startswith(ROOT_PATH):
+                continue
+                
             is_dir = os.path.isdir(full_path)
-            
-            # Khusus untuk file (bukan folder), tampilkan ukurannya
-            size_formatted = format_size(stat.st_size) if not is_dir else ""
+            size_bytes = 0
+
+            if is_dir:
+                # HITUNG UKURAN FOLDER SECARA REKURSIF
+                size_bytes = get_directory_size(full_path)
+                size_formatted = format_size(size_bytes) if size_bytes >= 0 else "Error"
+            else:
+                # UKURAN FILE NORMAL
+                stat = os.stat(full_path)
+                size_bytes = stat.st_size
+                size_formatted = format_size(size_bytes)
 
             files.append({
                 "name": f,
                 "is_dir": is_dir,
                 "full_path": full_path,
-                "size": size_formatted
+                "size": size_formatted,
+                "size_bytes": size_bytes
             })
     except Exception as e:
         print(f"list_dir error: {e}") 
         files.append({"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": ""})
 
-    # Tambahkan tombol 'Kembali' jika bukan root
-    if path != ROOT_PATH:
-        parent_path = os.path.dirname(path)
-        files.append({
-            "name": "..",
-            "is_dir": True,
-            "full_path": parent_path,
-            "size": "",
-            "is_parent": True # Marker untuk folder parent
-        })
+    # Hapus logika penambahan tombol '..'
+    # Navigasi kembali ditangani oleh fixed-footer
 
-    # Sortir: Folder parent, Folder, File
-    return sorted(files, key=lambda x: (x.get('is_parent') is not True, not x['is_dir'], x['name'].lower()))
+    # Sortir: Folder, File, berdasarkan nama
+    return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
 
 # --- INISIALISASI FLASK ---
-# Konfigurasi Flask agar tahu di mana mencari main.html
 app = Flask(__name__, template_folder=TEMPLATE_FOLDER)
-# Agar fungsi format_size tersedia di template Jinja
 app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
 
 # --- ROUTES ---
@@ -98,7 +115,6 @@ def index():
     path = request.args.get('path', ROOT_PATH)
     path = os.path.abspath(path)
     
-    # Keamanan: Pastikan path ada dan tidak keluar dari ROOT_PATH
     if not path.startswith(ROOT_PATH) or not os.path.exists(path):
         path = ROOT_PATH
 
@@ -112,7 +128,6 @@ def index():
     # List files
     all_files = list_dir(path)
     
-    # Render main.html dengan semua data yang dibutuhkan template
     return render_template(
         'main.html',
         path=path,
@@ -125,12 +140,11 @@ def index():
         drive_used=drive_used,
         drive_percent=drive_percent,
         drive_mount_path=drive_mount_path,
-        DECRYPTION_SUCCESS=DECRYPTION_SUCCESS # Status konfigurasi
+        DECRYPTION_SUCCESS=DECRYPTION_SUCCESS
     )
 
 @app.route('/file')
 def open_file():
-    # Logika yang sama untuk membuka/download file
     path = request.args.get('path')
     path = os.path.abspath(path)
     if not path.startswith(ROOT_PATH) or not os.path.isfile(path):
@@ -138,7 +152,6 @@ def open_file():
     
     ext = os.path.splitext(path)[1].lower()
     
-    # Jika file teks, tampilkan di browser
     if ext in ['.txt','.py','.csv','.md','.log','.json','.yml','.html','.css','.js']:
         try:
             with open(path,"r",encoding="utf-8",errors='ignore') as f:
@@ -146,7 +159,6 @@ def open_file():
         except Exception as e:
             return f"Gagal membaca file. ({e})", 500
     else:
-        # Selain itu, paksa download
         return send_file(path, as_attachment=True)
 
 
@@ -155,7 +167,6 @@ def open_file():
 def run_flask_and_tunnel():
     
     def run_flask():
-        # Menggunakan run_simple untuk menghilangkan output Werkzeug (* Serving Flask...)
         try:
             run_simple('0.0.0.0', PORT, app, use_reloader=False, threaded=True)
         except Exception as e:
@@ -184,7 +195,6 @@ def run_flask_and_tunnel():
                 break
         time.sleep(1)
         
-    # Output Akhir yang Sederhana (Hanya URL atau pesan error)
     if public_url:
         print(public_url)
     else:
