@@ -18,9 +18,15 @@ FIREBASE_CONFIG = None
 CLOUDFLARE_CONFIG = None
 PEM_BYTES = None
 
-# Tambahkan path ke folder HTML di repo yang dikloning
-# Asumsi: Repo dikloning ke /tmp/warthadev-api
-TEMPLATE_FOLDER = os.path.join("/tmp/warthadev-api", "html")
+# Tentukan direktori dasar (yaitu, /tmp/warthadev-api)
+BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Mengambil dua tingkat di atas file ini
+
+# Tambahkan path ke folder HTML
+TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
+
+# Tentukan folder root untuk file statis (yaitu, /tmp/warthadev-api)
+STATIC_FOLDER_ROOT = BASE_DIR 
+
 
 # --- UTILITY FUNCTIONS ---
 
@@ -145,7 +151,13 @@ def list_dir(path):
     return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
 
 # --- INISIALISASI FLASK ---
-app = Flask(__name__, template_folder=TEMPLATE_FOLDER)
+# Konfigurasi Flask untuk melayani template dari /html dan statis dari root (agar dapat mengakses subfolder /css)
+app = Flask(
+    __name__, 
+    template_folder=TEMPLATE_FOLDER, 
+    static_folder=STATIC_FOLDER_ROOT, 
+    static_url_path='/'
+) 
 app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
 
 # --- ROUTES ---
@@ -169,7 +181,7 @@ def index():
     all_files = list_dir(path)
     
     return render_template(
-        'main.html',
+        'main.html', # Pastikan nama template Anda adalah main.html
         path=path,
         root_path=ROOT_PATH,
         files=all_files,
