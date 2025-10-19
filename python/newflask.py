@@ -1,14 +1,14 @@
-# newflask.py
+# newflask.py (Untuk di-push ke GitHub)
 
 import os, subprocess, re, time
 from flask import Flask, render_template_string, send_file, request
 from threading import Thread
 
-# Config
-ROOT_PATH = "/content"
+# Config Awal (Akan ditimpa/di-inject nilainya oleh Colab)
+# Colab V7 akan menyuntikkan nilai ke variabel-variabel ini
+ROOT_PATH = "/content" 
 PORT = 8000
-# Variabel ini akan diupdate dari script utama sebelum exec_module
-DECRYPTION_SUCCESS = False
+DECRYPTION_SUCCESS = False 
 
 def list_dir(path):
     files = []
@@ -21,7 +21,8 @@ def list_dir(path):
                 "full_path": full_path
             })
     except Exception as e:
-        print(f"list_dir error: {e}")
+        # Gunakan print, karena log ini akan muncul di output Colab
+        print(f"list_dir error: {e}") 
     return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
 
 def generate_html(path, files, parent_path):
@@ -31,6 +32,7 @@ def generate_html(path, files, parent_path):
         icon = "📁" if f['is_dir'] else "📄"
         file_html += f"<li>{icon} <a href='{link}'>{f['name']}</a></li>"
 
+    # Menggunakan variabel yang di-inject oleh Colab
     config_status = "✅ Config Didekripsi" if DECRYPTION_SUCCESS else "❌ GAGAL Dekripsi. Cek error di output Colab."
 
     return f'''
@@ -51,6 +53,7 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
+    # Menggunakan ROOT_PATH yang di-inject oleh Colab
     path = request.args.get('path', ROOT_PATH)
     path = os.path.abspath(path)
     if not path.startswith(ROOT_PATH) or not os.path.exists(path):
@@ -78,7 +81,8 @@ def open_file():
 def run_flask_and_tunnel():
     
     def run_flask():
-        app.run(host="0.0.0.0", port=PORT, threaded=True)
+        # Menggunakan PORT yang di-inject oleh Colab
+        app.run(host="0.0.0.0", port=PORT, threaded=True) 
     Thread(target=run_flask, daemon=True).start()
 
     print("🔽 Mengunduh cloudflared...")
@@ -88,6 +92,7 @@ def run_flask_and_tunnel():
 
     print("🚀 Menjalankan Cloudflare Quick Tunnel...")
     proc = subprocess.Popen(
+        # Menggunakan PORT yang di-inject oleh Colab
         ["./cloudflared-linux-amd64", "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
