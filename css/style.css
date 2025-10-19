@@ -31,7 +31,9 @@ a { text-decoration: none; color: inherit; }
     padding: 8px 15px; 
     border-radius: 4px; 
     font-size: 0.9em; 
-    word-wrap: break-word; 
+    white-space: nowrap; /* Mencegah pemotongan baris di tengah path */
+    overflow: hidden;
+    text-overflow: ellipsis; /* Tampilkan ... di akhir */
 }
 
 .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
@@ -47,36 +49,52 @@ a { text-decoration: none; color: inherit; }
     align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
-    transition: background-color 0.2s; 
+    transition: background-color 0.2s, border 0.2s; /* Tambah transisi border */
     cursor: default; 
     position: relative;
+    border: 1px solid transparent; /* Border transparan default */
+}
+.file-item:hover {
+    background-color: #f8f9fa; 
+    cursor: pointer;
 }
 .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
 
-/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal */
+/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal (menggunakan Flexbox) */
 .file-text-container { 
     flex: 1; 
     overflow: hidden; 
-    display: block; 
+    display: flex; /* Diubah ke flex */
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
 }
 
 .file-name { 
-    white-space: normal; 
-    word-break: break-all; 
     font-weight: 500; 
-    display: inline-block; 
-    margin-right: 15px; 
-    max-width: calc(100% - 100px); 
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis; /* Teks nama file terpotong rapi */
+    white-space: nowrap;
 }
 .file-size { 
     font-size: 0.8em; 
     color: #6c757d; 
-    float: right; 
+    margin-left: auto; /* Mendorong ke kanan */
+    padding-left: 15px; 
+    white-space: nowrap;
 }
 
 /* Sembunyikan Teks Absolute di List View */
 .file-name-absolute, .file-size-absolute {
     display: none;
+}
+
+/* --- STYLE UNTUK SELEKSI BARU --- */
+.file-item.selected {
+    background-color: #e2f0ff; /* Warna latar belakang untuk item terpilih */
+    border: 1px solid #007bff; /* Border biru untuk penekanan */
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
 }
 
 /* --- GRID VIEW STYLES --- */
@@ -87,16 +105,18 @@ a { text-decoration: none; color: inherit; }
 }
 
 .file-list.grid-view .file-item {
-    /* Kotak Persegi (1:1) */
     height: 0; 
     padding-bottom: 100%; 
     padding-top: 0;
     position: relative;
     display: block;
     text-align: center;      
-    border: 1px solid #ddd;
     border-radius: 8px;
     overflow: hidden; 
+    border: 1px solid #ddd; /* Border default di grid */
+}
+.file-list.grid-view .file-item.selected {
+     border: 2px solid #007bff; /* Border sedikit lebih tebal saat terpilih di grid */
 }
 
 /* Sembunyikan Teks List View di Grid View */
@@ -127,7 +147,7 @@ a { text-decoration: none; color: inherit; }
     overflow: hidden;
     text-overflow: ellipsis;
     padding: 2px 4px;
-    background-color: rgba(255, 255, 255, 0.7); 
+    background-color: rgba(255, 255, 255, 0.85); 
     border-radius: 3px;
     font-weight: bold;
     z-index: 5;
@@ -140,7 +160,7 @@ a { text-decoration: none; color: inherit; }
     font-size: 0.7em;
     color: #6c757d;
     padding: 2px 4px;
-    background-color: rgba(255, 255, 255, 0.7);
+    background-color: rgba(255, 255, 255, 0.85);
     border-radius: 3px;
     z-index: 5;
 }
@@ -179,8 +199,8 @@ a { text-decoration: none; color: inherit; }
     padding: 5px; color: #ced4da; transition: color 0.2s;
     cursor: pointer;
 }
-.nav-icon i { font-size: 1.5em; /* Ukuran ikon lebih besar karena tidak ada teks */ }
-.nav-icon span { display: none; /* SEMBUNYIKAN Teks */ }
+.nav-icon i { font-size: 1.5em; }
+.nav-icon span { display: none; }
 .nav-icon:hover { color: #ffffff; }
 
 /* --- MENU OVERLAY STYLES --- */
@@ -190,9 +210,9 @@ a { text-decoration: none; color: inherit; }
     left: 0;
     width: 100%;
     height: 100%;
-    background-color: rgba(0, 0, 0, 0.6); /* Background gelap transparan */
+    background-color: rgba(0, 0, 0, 0.6); 
     z-index: 150;
-    display: none; /* Sembunyikan secara default */
+    display: none; 
     justify-content: center;
     align-items: center;
 }
@@ -222,7 +242,6 @@ a { text-decoration: none; color: inherit; }
     align-items: center;
 }
 
-/* Set semua item menu agar terlihat seragam */
 .menu-item { 
     padding: 12px 10px;
     border-bottom: 1px solid #f8f9fa;
@@ -233,7 +252,7 @@ a { text-decoration: none; color: inherit; }
 }
 
 .menu-item:last-child {
-    border-bottom: none; /* Hapus border di item terakhir */
+    border-bottom: none; 
 }
 
 .menu-item:hover {
