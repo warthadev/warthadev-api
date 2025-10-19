@@ -149,14 +149,14 @@
             
             function handleSelectionAction(actionId, count) {
                 let message = '';
-                let shouldCloseModal = true; // Default: tutup modal setelah aksi
+                let shouldCloseModal = true;
 
                 switch(actionId) {
                     case 'selection-all':
                         fileList.querySelectorAll('.file-item').forEach(item => item.classList.add('selected'));
                         updateSelectionCount();
-                        shouldCloseModal = false; // PERUBAHAN: JANGAN TUTUP MODAL
-                        return; // Keluar dari fungsi karena aksi sudah selesai
+                        shouldCloseModal = false;
+                        return; 
                     case 'selection-slideshow':
                         message = `Memulai Slideshow untuk ${count} gambar!`;
                         break;
@@ -246,8 +246,10 @@
                     itemDiv.addEventListener('click', (e) => {
                         e.preventDefault();
                         handleSelectionAction(action.id, count);
-                        if(action.id !== 'selection-all') { // Pengecekan tambahan di sini untuk jaga-jaga
+                        if(action.id !== 'selection-all') { 
                            toggleMenu(false);
+                        } else {
+                            updateSelectionMenu(); 
                         }
                     });
                 });
@@ -352,6 +354,7 @@
                 
                 if (isSelecting) {
                      e.preventDefault(); 
+                     toggleMenu(true);
                 }
             });
 
