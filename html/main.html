@@ -62,7 +62,6 @@
             transition: background-color 0.2s; 
             cursor: default; 
             position: relative;
-            /* Blokir Menu Konteks Bawaan */
             user-select: none; 
         }
         .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
@@ -337,8 +336,8 @@
                 {% endif %}
             </div>
 
-            {# Tambahkan atribut title untuk memudahkan salin path #}
-            <div class="current-path" title="Klik kanan untuk seleksi atau klik untuk salin (Segera)"><strong>Path:</strong> <code>{{ path }}</code></div>
+            {# Hanya pemblokiran klik kanan, klik kiri default tidak melakukan apa-apa #}
+            <div class="current-path" title="Klik kanan untuk menu browser."><strong>Path:</strong> <code>{{ path }}</code></div>
         </div>
 
         <div id="file-list" class="file-list">
@@ -351,7 +350,6 @@
                 {% set icon_class = f['icon_class'] %}
                 
                 {% if f['is_dir'] %}
-                    {# Ubah folder menjadi div agar bisa dipilih dengan event listener #}
                     <div class="file-item file-folder" data-path="{{ target_path }}">
                         
                         {# Teks Absolute Grid View #}
@@ -461,7 +459,19 @@
             // Item menu dummy: Mengambil SEMUA DIV di menu-list
             const dummyMenuItems = document.querySelectorAll('.menu-list .menu-item'); 
             
-            // --- 0. Fungsi Navigasi Folder (Folder sekarang adalah DIV, bukan A) ---
+            // --- 0. Navigasi Folder & Seleksi Logic ---
+            
+            function toggleSelection(item, path) {
+                if (selectedPaths.has(path)) {
+                    selectedPaths.delete(path);
+                    item.classList.remove('selected');
+                } else {
+                    selectedPaths.add(path);
+                    item.classList.add('selected');
+                }
+                updateSelectionMenu(Array.from(selectedPaths));
+            }
+
             fileList.addEventListener('click', function(e) {
                 const item = e.target.closest('.file-item');
                 if (!item) return;
@@ -469,25 +479,28 @@
                 const isFolder = item.classList.contains('file-folder');
                 const path = item.getAttribute('data-path');
 
-                // Jika mode seleksi aktif, klik berfungsi sebagai toggle seleksi
-                if (selectionMenu.style.display === 'flex') {
-                    // Seleksi sudah ditangani di bagian bawah, di sini hanya memastikan tidak terjadi navigasi
+                if (!path) return; // Pastikan ada path
+
+                // A. Jika ada item yang sudah terseleksi, klik berfungsi sebagai TOGGLE SELEKSI
+                if (selectedPaths.size > 0) {
                     e.preventDefault();
+                    toggleSelection(item, path);
                     return; 
                 }
 
-                if (isFolder && path) {
+                // B. Jika TIDAK ada item terseleksi, klik berfungsi sebagai NAVIGASI/BUKA
+                if (isFolder) {
                     e.preventDefault();
                     window.location.href = '/?path=' + encodeURIComponent(path);
                 } else if (item.classList.contains('file-file')) {
-                    // Aksi file biasa (Misalnya Buka/Lihat)
                     e.preventDefault();
+                    // Aksi file biasa (Misalnya Buka/Lihat)
                     window.location.href = '/file?path=' + encodeURIComponent(path);
                 }
             });
 
 
-            // --- 1. Fungsi Toggle Grid ---
+            // --- 1. Fungsi Toggle Grid (Tidak ada perubahan) ---
             let isGridView = sessionStorage.getItem('viewMode') === 'grid';
             
             const setView = (isGrid) => {
@@ -511,7 +524,7 @@
                 setView(isGridView);
             });
 
-            // --- 2. Fungsi Tombol Kembali (history.back) ---
+            // --- 2. Fungsi Tombol Kembali (Tidak ada perubahan) ---
             if (backButton) {
                 backButton.addEventListener('click', function(e) {
                     e.preventDefault();
@@ -519,7 +532,7 @@
                 });
             }
 
-            // --- 3. Fungsi Menu Overlay ---
+            // --- 3. Fungsi Menu Overlay (Tidak ada perubahan) ---
             const toggleMenu = (show) => {
                 if (show) {
                     menuOverlay.style.display = 'flex';
@@ -548,7 +561,7 @@
                 }
             });
             
-            // --- 4. Event listener Menu Item DUMMY ---
+            // --- 4. Event listener Menu Item DUMMY (Tidak ada perubahan) ---
             dummyMenuItems.forEach(item => {
                 item.addEventListener('click', function(e) {
                     e.preventDefault(); 
@@ -602,31 +615,36 @@
                 };
             }
 
-            // Aksi Long-Press/Right-Click pada File/Folder (Mengaktifkan/Toggle Seleksi)
+            // Aksi Long-Press/Right-Click pada File/Folder (HANYA UNTUK MEMUNCULKAN MENU KONTEKS BAWAAN)
             fileItems.forEach(item => {
-                
+                // Hapus fungsi toggleSelection dari contextmenu
                 item.addEventListener('contextmenu', function(e) {
-                    e.preventDefault(); // Blokir menu konteks browser bawaan
-                    
-                    const path = this.getAttribute('data-path');
-                    
-                    if (selectedPaths.has(path)) {
-                        selectedPaths.delete(path);
-                        this.classList.remove('selected');
-                    } else {
-                        selectedPaths.add(path);
-                        this.classList.add('selected');
-                    }
-
-                    updateSelectionMenu(Array.from(selectedPaths));
+                    // Biarkan menu konteks browser muncul untuk item file/folder
+                    // Jika di mobile, ini seringkali jadi trigger long-press, tapi di desktop akan memunculkan menu bawaan
                 });
             });
             
-            // --- 6. Event listener Tombol Browser/Dunia (Tidak Ada Aksi) ---
+            // --- 6. Event listener Tombol Browser/Dunia (Tidak ada aksi) ---
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
                 // Tidak ada aksi lanjutan di sini.
             });
+            
+            // Tambahkan listener untuk mendeteksi press yang memulai seleksi (HANYA KLIK PERTAMA)
+            fileList.addEventListener('mousedown', function(e) {
+                 const item = e.target.closest('.file-item');
+                 if (!item) return;
+                 
+                 // Jika ini klik kiri (e.button === 0) dan belum ada yang terseleksi, ini adalah trigger seleksi pertama
+                 if (e.button === 0 && selectedPaths.size === 0) {
+                    e.preventDefault();
+                    const path = item.getAttribute('data-path');
+                    if (path) {
+                        toggleSelection(item, path);
+                    }
+                 }
+            });
+            
         });
     </script>
 
