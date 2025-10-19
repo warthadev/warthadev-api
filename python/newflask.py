@@ -1,5 +1,3 @@
-# newflask.py (Untuk di-push ke GitHub)
-
 import os, subprocess, re, time
 from flask import Flask, render_template, send_file, request
 from threading import Thread
@@ -63,8 +61,50 @@ def get_directory_size(start_path='.'):
         return -1 # Mengembalikan nilai negatif untuk menandakan error
     return total_size
 
+def get_file_icon_class(filename):
+    """Menentukan class ikon Font Awesome berdasarkan ekstensi file."""
+    if not isinstance(filename, str):
+        return "fa-file-alt"
+
+    ext = os.path.splitext(filename)[1].lower()
+
+    # Kategori: MEDIA
+    if ext in ['.mp4', '.mkv', '.avi', '.mov', '.wmv']:
+        return "fa-file-video"  # Video
+    if ext in ['.mp3', '.wav', '.flac', '.ogg']:
+        return "fa-file-audio"  # Audio
+    if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']:
+        return "fa-file-image"  # Gambar
+
+    # Kategori: FILE APLIKASI / SOFTWARE / KODE
+    if ext in ['.exe', '.msi', '.deb', '.rpm', '.apk']:
+        return "fa-box"  # Paket/Aplikasi
+    if ext in ['.py', '.java', '.c', '.cpp', '.html', '.css', '.js', '.json', '.xml']:
+        return "fa-file-code"  # Kode/Script
+    if ext in ['.sh', '.bat', '.cmd']:
+        return "fa-terminal"  # Script Terminal
+    
+    # Kategori: FILE KOMPRESI
+    if ext in ['.zip', '.rar', '.7z', '.tar', '.gz']:
+        return "fa-file-archive" # Kompresi
+
+    # Kategori: DOKUMEN LAIN
+    if ext in ['.pdf']:
+        return "fa-file-pdf"
+    if ext in ['.doc', '.docx']:
+        return "fa-file-word"
+    if ext in ['.xls', '.xlsx', '.csv']:
+        return "fa-file-excel"
+    if ext in ['.ppt', '.pptx']:
+        return "fa-file-powerpoint"
+    if ext in ['.txt', '.log', '.md']:
+        return "fa-file-alt" # Teks biasa
+        
+    # Kategori: DEFAULT
+    return "fa-file" # Ikon file default/umum
+
 def list_dir(path):
-    """Mendaftar file dan folder dengan informasi ukuran (termasuk ukuran folder)."""
+    """Mendaftar file dan folder dengan informasi ukuran (termasuk ukuran folder) dan ikon."""
     files = []
     try:
         for f in os.listdir(path):
@@ -81,25 +121,25 @@ def list_dir(path):
                 # HITUNG UKURAN FOLDER SECARA REKURSIF
                 size_bytes = get_directory_size(full_path)
                 size_formatted = format_size(size_bytes) if size_bytes >= 0 else "Error"
+                icon_class = "fa-folder" # Ikon untuk folder
             else:
                 # UKURAN FILE NORMAL
                 stat = os.stat(full_path)
                 size_bytes = stat.st_size
                 size_formatted = format_size(size_bytes)
+                icon_class = get_file_icon_class(f) # Ikon spesifik untuk file
 
             files.append({
                 "name": f,
                 "is_dir": is_dir,
                 "full_path": full_path,
                 "size": size_formatted,
-                "size_bytes": size_bytes
+                "size_bytes": size_bytes,
+                "icon_class": icon_class # Tambahkan class ikon
             })
     except Exception as e:
         print(f"list_dir error: {e}") 
-        files.append({"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": ""})
-
-    # Hapus logika penambahan tombol '..'
-    # Navigasi kembali ditangani oleh fixed-footer
+        files.append({"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": "", "icon_class": "fa-exclamation-triangle"})
 
     # Sortir: Folder, File, berdasarkan nama
     return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
