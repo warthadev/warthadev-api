@@ -5,10 +5,13 @@ from flask import Flask, render_template_string, send_file, request
 from threading import Thread
 
 # Config Awal (Akan ditimpa/di-inject nilainya oleh Colab)
-# Colab V7 akan menyuntikkan nilai ke variabel-variabel ini
 ROOT_PATH = "/content" 
 PORT = 8000
 DECRYPTION_SUCCESS = False 
+# Variabel konfigurasi tambahan yang di-inject (ditambahkan untuk menghindari NameError di fungsi lain jika diperlukan)
+FIREBASE_CONFIG = None
+CLOUDFLARE_CONFIG = None
+PEM_BYTES = None
 
 def list_dir(path):
     files = []
@@ -21,7 +24,6 @@ def list_dir(path):
                 "full_path": full_path
             })
     except Exception as e:
-        # Gunakan print, karena log ini akan muncul di output Colab
         print(f"list_dir error: {e}") 
     return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
 
@@ -32,7 +34,6 @@ def generate_html(path, files, parent_path):
         icon = "📁" if f['is_dir'] else "📄"
         file_html += f"<li>{icon} <a href='{link}'>{f['name']}</a></li>"
 
-    # Menggunakan variabel yang di-inject oleh Colab
     config_status = "✅ Config Didekripsi" if DECRYPTION_SUCCESS else "❌ GAGAL Dekripsi. Cek error di output Colab."
 
     return f'''
@@ -53,7 +54,6 @@ app = Flask(__name__)
 
 @app.route('/')
 def index():
-    # Menggunakan ROOT_PATH yang di-inject oleh Colab
     path = request.args.get('path', ROOT_PATH)
     path = os.path.abspath(path)
     if not path.startswith(ROOT_PATH) or not os.path.exists(path):
@@ -81,18 +81,15 @@ def open_file():
 def run_flask_and_tunnel():
     
     def run_flask():
-        # Menggunakan PORT yang di-inject oleh Colab
-        app.run(host="0.0.0.0", port=PORT, threaded=True) 
+        # Menggunakan quiet=True untuk menghilangkan output Werkzeug (* Serving Flask...)
+        app.run(host="0.0.0.0", port=PORT, threaded=True, quiet=True) 
     Thread(target=run_flask, daemon=True).start()
 
-    print("🔽 Mengunduh cloudflared...")
+    # Log minimalis untuk cloudflared
     os.system('wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared-linux-amd64')
     os.system('chmod +x cloudflared-linux-amd64')
-    print("🔧 cloudflared siap.")
 
-    print("🚀 Menjalankan Cloudflare Quick Tunnel...")
     proc = subprocess.Popen(
-        # Menggunakan PORT yang di-inject oleh Colab
         ["./cloudflared-linux-amd64", "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate"],
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
@@ -103,18 +100,17 @@ def run_flask_and_tunnel():
     for _ in range(30):
         line = proc.stdout.readline()
         if line:
-            print(line.strip())
+            # Tidak mencetak log cloudflared, hanya mencari URL
+            # print(line.strip()) # Di-disable
             m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
             if m:
                 public_url = m.group(1)
                 break
         time.sleep(1)
         
-    print("\n" + "="*50)
+    # Output Akhir yang Sederhana
     if public_url:
-        print("             ✅ SETUP SELESAI ✅")
-        print(f"🔗 LINK PUBLIC FILE MANAGER: **{public_url}**")
+        print(public_url)
     else:
-        print("             ❌ GAGAL TUNNEL ❌")
-        print("Cek log Cloudflared di atas untuk detail error.")
-    print("==================================================")
+        # Jika gagal, tampilkan pesan error yang minimal
+        print("Gagal mendapatkan URL Cloudflare.")
