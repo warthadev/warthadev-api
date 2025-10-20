@@ -1,253 +1,189 @@
-import os, subprocess, re, time
-from flask import Flask, render_template, send_file, request
+# newflask.py
+import os, sys, math, time, re, shutil, logging, subprocess
 from threading import Thread
-from werkzeug.serving import run_simple 
-import logging
-import math
-import shutil
+from werkzeug.serving import run_simple
+from flask import Flask, render_template, send_file, request
 
-# Nonaktifkan logging Flask/Werkzeug yang tidak perlu
-log = logging.getLogger('werkzeug')
-log.setLevel(logging.ERROR) 
+ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
+PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
+CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
+CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "30"))
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-# --- KONFIGURASI GLOBAL (DI-INJECT) ---
-ROOT_PATH = "/content" 
-PORT = 8000
-DECRYPTION_SUCCESS = False 
-FIREBASE_CONFIG = None
-CLOUDFLARE_CONFIG = None
-PEM_BYTES = None
+try:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+except NameError:
+    BASE_DIR = os.path.abspath(os.getcwd())
 
-# Tentukan direktori dasar (yaitu, /tmp/warthadev-api)
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__))) # Mengambil dua tingkat di atas file ini
-
-# Tambahkan path ke folder HTML
 TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
-
-# Tentukan folder root untuk file statis (yaitu, /tmp/warthadev-api)
-STATIC_FOLDER_ROOT = BASE_DIR 
-
-
-# --- UTILITY FUNCTIONS ---
+STATIC_FOLDER_ROOT = BASE_DIR
+if not os.path.isdir(TEMPLATE_FOLDER):
+    os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
 def format_size(size_bytes):
-    """Mengubah byte menjadi format yang mudah dibaca (KB, MB, GB)."""
-    if size_bytes <= 0:
-        return "0 B"
-    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    if size_bytes is None or size_bytes < 0: return "0 B"
+    if size_bytes == 0: return "0 B"
+    size_name = ("B", "KB", "MB", "GB", "TB")
     i = int(math.floor(math.log(size_bytes, 1024)))
     p = math.pow(1024, i)
     s = round(size_bytes / p, 2)
     return f"{s} {size_name[i]}"
 
 def get_disk_usage(path):
-    """Mendapatkan statistik penggunaan disk (total, used, percent)."""
-    if not os.path.exists(path):
-        return 0, 0, 0.0
-    
     try:
+        if not os.path.exists(path): return 0, 0, 0.0
         total, used, free = shutil.disk_usage(path)
-        percent = (used / total) * 100 if total > 0 else 0
+        percent = (used / total) * 100 if total > 0 else 0.0
         return total, used, percent
+    except Exception: return 0, 0, 0.0
+
+def _is_within_root(path):
+    try:
+        real_root = os.path.realpath(ROOT_PATH)
+        real_path = os.path.realpath(path)
+        return os.path.commonpath([real_root, real_path]) == real_root
     except Exception:
-        return 0, 0, 0.0
+        return False
 
 def get_directory_size(start_path='.'):
-    """Menghitung total ukuran semua file di dalam direktori secara rekursif."""
     total_size = 0
     try:
-        for dirpath, dirnames, filenames in os.walk(start_path):
-            for f in filenames:
-                fp = os.path.join(dirpath, f)
-                # Lewati symbolic link (untuk menghindari loop tak terbatas)
-                if not os.path.islink(fp):
-                    total_size += os.path.getsize(fp)
-    except Exception as e:
-        # Jika ada error izin atau link rusak
-        return -1 # Mengembalikan nilai negatif untuk menandakan error
+        for dirpath, _, filenames in os.walk(start_path):
+            for fname in filenames:
+                fp = os.path.join(dirpath, fname)
+                try:
+                    if not os.path.islink(fp): total_size += os.path.getsize(fp)
+                except Exception: continue
+    except Exception: return -1
     return total_size
 
 def get_file_icon_class(filename):
-    """Menentukan class ikon Font Awesome berdasarkan ekstensi file."""
-    if not isinstance(filename, str):
-        return "fa-file-alt"
-
     ext = os.path.splitext(filename)[1].lower()
-
-    # Kategori: MEDIA
-    if ext in ['.mp4', '.mkv', '.avi', '.mov', '.wmv']:
-        return "fa-file-video"  # Video
-    if ext in ['.mp3', '.wav', '.flac', '.ogg']:
-        return "fa-file-audio"  # Audio
-    if ext in ['.jpg', '.jpeg', '.png', '.gif', '.bmp', '.svg']:
-        return "fa-file-image"  # Gambar
-
-    # Kategori: FILE APLIKASI / SOFTWARE / KODE
-    if ext in ['.exe', '.msi', '.deb', '.rpm', '.apk']:
-        return "fa-box"  # Paket/Aplikasi
-    if ext in ['.py', '.java', '.c', '.cpp', '.html', '.css', '.js', '.json', '.xml']:
-        return "fa-file-code"  # Kode/Script
-    if ext in ['.sh', '.bat', '.cmd']:
-        return "fa-terminal"  # Script Terminal
-    
-    # Kategori: FILE KOMPRESI
-    if ext in ['.zip', '.rar', '.7z', '.tar', '.gz']:
-        return "fa-file-archive" # Kompresi
-
-    # Kategori: DOKUMEN LAIN
-    if ext in ['.pdf']:
-        return "fa-file-pdf"
-    if ext in ['.doc', '.docx']:
-        return "fa-file-word"
-    if ext in ['.xls', '.xlsx', '.csv']:
-        return "fa-file-excel"
-    if ext in ['.ppt', '.pptx']:
-        return "fa-file-powerpoint"
-    if ext in ['.txt', '.log', '.md']:
-        return "fa-file-alt" # Teks biasa
-        
-    # Kategori: DEFAULT
-    return "fa-file" # Ikon file default/umum
+    if ext in ['.mp4','.mkv','.avi','.mov','.wmv']: return "fa-file-video"
+    if ext in ['.mp3','.wav','.flac','.ogg']: return "fa-file-audio"
+    if ext in ['.jpg','.jpeg','.png','.gif','.bmp','.svg','.webp']: return "fa-file-image"
+    if ext in ['.exe','.msi','.deb','.rpm','.apk']: return "fa-box"
+    if ext in ['.py','.java','.c','.cpp','.html','.css','.js','.json','.xml','.sh']: return "fa-file-code"
+    if ext in ['.zip','.rar','.7z','.tar','.gz','.tgz']: return "fa-file-archive"
+    if ext in ['.pdf']: return "fa-file-pdf"
+    if ext in ['.doc','.docx']: return "fa-file-word"
+    if ext in ['.xls','.xlsx','.csv']: return "fa-file-excel"
+    if ext in ['.ppt','.pptx']: return "fa-file-powerpoint"
+    if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"
+    return "fa-file"
 
 def list_dir(path):
-    """Mendaftar file dan folder dengan informasi ukuran (termasuk ukuran folder) dan ikon."""
     files = []
     try:
-        for f in os.listdir(path):
-            full_path = os.path.join(path, f)
-            
-            # Cek apakah itu symbolic link yang mengarah ke luar root
-            if os.path.islink(full_path) and not os.path.realpath(full_path).startswith(ROOT_PATH):
-                continue
-                
+        if not os.path.exists(path): return files
+        for name in sorted(os.listdir(path), key=lambda x: x.lower()):
+            full_path = os.path.join(path, name)
+            if os.path.islink(full_path) and not _is_within_root(full_path): continue
             is_dir = os.path.isdir(full_path)
-            size_bytes = 0
-
+            size_bytes, size_formatted, icon_class = 0, "", "fa-file"
             if is_dir:
-                # HITUNG UKURAN FOLDER SECARA REKURSIF
                 size_bytes = get_directory_size(full_path)
                 size_formatted = format_size(size_bytes) if size_bytes >= 0 else "Error"
-                icon_class = "fa-folder" # Ikon untuk folder
+                icon_class = "fa-folder"
             else:
-                # UKURAN FILE NORMAL
-                stat = os.stat(full_path)
-                size_bytes = stat.st_size
-                size_formatted = format_size(size_bytes)
-                icon_class = get_file_icon_class(f) # Ikon spesifik untuk file
-
+                try:
+                    stat = os.stat(full_path)
+                    size_bytes = stat.st_size
+                    size_formatted = format_size(size_bytes)
+                    icon_class = get_file_icon_class(name)
+                except Exception:
+                    size_formatted = "Error"
             files.append({
-                "name": f,
-                "is_dir": is_dir,
-                "full_path": full_path,
-                "size": size_formatted,
-                "size_bytes": size_bytes,
-                "icon_class": icon_class # Tambahkan class ikon
+                "name": name, "is_dir": is_dir, "full_path": full_path,
+                "size": size_formatted, "size_bytes": size_bytes, "icon_class": icon_class
             })
     except Exception as e:
-        print(f"list_dir error: {e}") 
         files.append({"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": "", "icon_class": "fa-exclamation-triangle"})
+    return files
 
-    # Sortir: Folder, File, berdasarkan nama
-    return sorted(files, key=lambda x: (not x['is_dir'], x['name'].lower()))
-
-# --- INISIALISASI FLASK ---
-# Konfigurasi Flask untuk melayani template dari /html dan statis dari root (agar dapat mengakses subfolder /css)
-app = Flask(
-    __name__, 
-    template_folder=TEMPLATE_FOLDER, 
-    static_folder=STATIC_FOLDER_ROOT, 
-    static_url_path='/'
-) 
+app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")
 app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
 
-# --- ROUTES ---
-
-@app.route('/')
+@app.route("/")
 def index():
-    path = request.args.get('path', ROOT_PATH)
-    path = os.path.abspath(path)
-    
-    if not path.startswith(ROOT_PATH) or not os.path.exists(path):
-        path = ROOT_PATH
-
-    # Statistik Disk (Colab FS)
+    req_path = request.args.get("path", ROOT_PATH)
+    try: abs_path = os.path.abspath(req_path)
+    except Exception: abs_path = ROOT_PATH
+    if not _is_within_root(abs_path) or not os.path.exists(abs_path): abs_path = ROOT_PATH
     colab_total, colab_used, colab_percent = get_disk_usage(ROOT_PATH)
-    
-    # Statistik Disk Drive (Asumsi Drive di-mount di /content/drive)
-    drive_mount_path = "/content/drive"
+    drive_mount_path = os.path.join(ROOT_PATH, "drive")
     drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)
+    files = list_dir(abs_path)
+    tpl = "main.html"
+    if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):
+        items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
+        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>"
+    return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,
+        colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
+        drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
+        drive_mount_path=drive_mount_path)
 
-    # List files
-    all_files = list_dir(path)
-    
-    return render_template(
-        'main.html', # Pastikan nama template Anda adalah main.html
-        path=path,
-        root_path=ROOT_PATH,
-        files=all_files,
-        colab_total=colab_total,
-        colab_used=colab_used,
-        colab_percent=colab_percent,
-        drive_total=drive_total,
-        drive_used=drive_used,
-        drive_percent=drive_percent,
-        drive_mount_path=drive_mount_path,
-        DECRYPTION_SUCCESS=DECRYPTION_SUCCESS
-    )
-
-@app.route('/file')
+@app.route("/file")
 def open_file():
-    path = request.args.get('path')
-    path = os.path.abspath(path)
-    if not path.startswith(ROOT_PATH) or not os.path.isfile(path):
-        return "File tidak bisa dibuka.", 404
-    
-    ext = os.path.splitext(path)[1].lower()
-    
-    if ext in ['.txt','.py','.csv','.md','.log','.json','.yml','.html','.css','.js']:
+    p = request.args.get("path", "")
+    if not p: return "Path missing", 400
+    try: abs_path = os.path.abspath(p)
+    except Exception: return "Invalid path", 400
+    if not _is_within_root(abs_path) or not os.path.exists(abs_path) or not os.path.isfile(abs_path): return "File cannot be opened.", 404
+    text_exts = {'.txt','.py','.csv','.md','.log','.json','.yml','.yaml','.html','.css','.js'}
+    ext = os.path.splitext(abs_path)[1].lower()
+    if ext in text_exts:
         try:
-            with open(path,"r",encoding="utf-8",errors='ignore') as f:
-                return f"<pre>{f.read()}</pre>"
-        except Exception as e:
-            return f"Gagal membaca file. ({e})", 500
-    else:
-        return send_file(path, as_attachment=True)
+            with open(abs_path, "r", encoding="utf-8", errors="ignore") as fh: content = fh.read()
+            safe_content = content.replace("</", "&lt;/")
+            return f"<pre>{safe_content}</pre>"
+        except Exception as e: return f"Failed to read file: {e}", 500
+    try: return send_file(abs_path, as_attachment=True)
+    except Exception as e: return f"Failed to send file: {e}", 500
 
-
-# --- FUNGSI PELUNCURAN UTAMA ---
+def ensure_cloudflared():
+    if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
+    try:
+        print("Mengunduh cloudflared...")
+        rc = os.system(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}")
+        if rc != 0:
+            os.system(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}")
+        os.chmod(CLOUDFLARED_BIN, 0o755)
+        return True
+    except Exception: return False
 
 def run_flask_and_tunnel():
-    
-    def run_flask():
-        try:
-            run_simple('0.0.0.0', PORT, app, use_reloader=False, threaded=True)
-        except Exception as e:
-            print(f"Flask execution error: {e}")
-
-    Thread(target=run_flask, daemon=True).start()
-
-    # Log minimalis untuk cloudflared
-    os.system('wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O cloudflared-linux-amd64')
-    os.system('chmod +x cloudflared-linux-amd64')
-
-    proc = subprocess.Popen(
-        ["./cloudflared-linux-amd64", "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate"],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        text=True
-    )
-
-    public_url = None
-    for _ in range(30):
-        line = proc.stdout.readline()
+    def _run():
+        try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
+        except Exception as e: print("Flask run error:", e)
+    Thread(target=_run, daemon=True).start()
+    if not ensure_cloudflared():
+        print("cloudflared tidak tersedia."); return
+    try:
+        proc = subprocess.Popen(
+            [CLOUDFLARED_BIN,"tunnel","--url",f"http://127.0.0.1:{PORT}","--no-autoupdate"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+        )
+    except Exception as e:
+        print("Gagal jalankan cloudflared:", e); return
+    public_url, start = None, time.time()
+    while time.time() - start < CLOUDFLARE_TIMEOUT:
+        try: line = proc.stdout.readline()
+        except Exception: line = ""
         if line:
+            print(line.strip())
             m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
-            if m:
-                public_url = m.group(1)
-                break
-        time.sleep(1)
-        
-    if public_url:
-        print(public_url)
-    else:
-        print("Gagal mendapatkan URL Cloudflare.")
+            if m: public_url = m.group(1); break
+        else: time.sleep(0.2)
+    if public_url: print("\n", public_url, "\n")
+    else: print("Gagal mendapatkan URL Cloudflare.")
+
+if __name__ == "__main__":
+    print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")
+    try: os.makedirs(ROOT_PATH, exist_ok=True)
+    except Exception: pass
+    run_flask_and_tunnel()
+    try:
+        while True: time.sleep(1)
+    except KeyboardInterrupt:
+        print("Terminated."); sys.exit(0)
