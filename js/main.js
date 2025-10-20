@@ -36,27 +36,16 @@ document.addEventListener('DOMContentLoaded', function() {
         let shouldCloseModal = true; 
         
         const selectedItems = getSelectedItems();
-        const allItems = getAllItems();
-        // Cek apakah semua item di direktori yang ditampilkan sudah terpilih
-        const allSelected = selectedItems.length === allItems.length && allItems.length > 0;
+        // const allItems = getAllItems(); // Tidak perlu karena selection-all dihapus
+        // const allSelected = selectedItems.length === allItems.length && allItems.length > 0; // Tidak perlu
 
         const selectedPaths = Array.from(selectedItems).map(item => 
             item.getAttribute('data-path') || item.getAttribute('href')
         ).filter(path => path);
 
         switch(actionId) {
-            case 'selection-all':
-                if (allSelected) {
-                    // Batalkan semua seleksi
-                    allItems.forEach(item => item.classList.remove('selected'));
-                } else {
-                    // Pilih semua item yang sedang ditampilkan
-                    allItems.forEach(item => item.classList.add('selected'));
-                }
-                updateSelectionCount();
-                shouldCloseModal = false; // Tetap buka menu untuk melihat status baru
-                return;
-
+            /* PENTING: Case 'selection-all' telah dihapus */
+            
             case 'selection-copy':
                 message = `Menyalin ${count} item! (Siap untuk Tempel)`;
                 isClipboardPopulated = true; 
@@ -93,22 +82,16 @@ document.addEventListener('DOMContentLoaded', function() {
         alert(message);
         
         if (shouldCloseModal) {
-            // Reset seleksi visual
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
-            // Keluar dari mode seleksi
             toggleSelectionMode(false); 
         }
     }
 
     function updateSelectionMenu() {
         const selectedItems = getSelectedItems();
-        const allItems = getAllItems();
         const count = selectedItems.length;
-        const totalCount = allItems.length;
         const menuList = menuModal.querySelector('.menu-list');
 
-        const allSelected = count === totalCount && totalCount > 0;
-        
         let allImages = count > 0;
         let isSingleCompress = count === 1;
         
@@ -125,12 +108,7 @@ document.addEventListener('DOMContentLoaded', function() {
         menuList.innerHTML = '';
         const selectionActions = [];
         
-        // Aksi Pilih Semua / Batalkan Semua (Dinamis)
-        if (allSelected) {
-            selectionActions.push({ id: 'selection-all', icon: 'fas fa-times-circle', label: `Batalkan Semua Seleksi` });
-        } else {
-            selectionActions.push({ id: 'selection-all', icon: 'fas fa-check-double', label: `Pilih Semua (${totalCount})` });
-        }
+        /* PENTING: Aksi Pilih Semua / Batalkan Semua (selection-all) telah dihapus */
         
         // Tambahkan Paste jika clipboard terisi (dan tidak ada item yang dipilih)
         if (isClipboardPopulated && count === 0) { 
@@ -165,7 +143,7 @@ document.addEventListener('DOMContentLoaded', function() {
             itemDiv.addEventListener('click', (e) => {
                 e.preventDefault();
                 handleSelectionAction(action.id, count);
-                if(action.id !== 'selection-all') { 
+                if(action.id !== 'selection-all') { // Cek selection-all tetap ada untuk jaga-jaga
                    toggleMenu(false); 
                 }
             });
@@ -327,8 +305,6 @@ document.addEventListener('DOMContentLoaded', function() {
             gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
             sessionStorage.setItem('viewMode', 'list');
         }
-        
-        // PENTING: Seleksi TIDAK direset di sini, sesuai permintaan Anda.
     };
     setView(isGridView);
 
