@@ -143,101 +143,71 @@ def open_file():
     try: return send_file(abs_path, as_attachment=True)
     except Exception as e: return f"Failed to send file: {e}", 500
 
-# --- CLOUDFLARE TUNNELING ---
+# --- CLOUDFLARE TUNNEL AUTO-RESTART ---
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
         print("Mengunduh cloudflared...")
         download_url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
-        
-        # Coba wget
-        result = subprocess.run(
-            ["wget", "-q", download_url, "-O", CLOUDFLARED_BIN], 
-            capture_output=True, check=False
-        )
-        
-        # Jika wget gagal, coba curl
+        result = subprocess.run(["wget","-q",download_url,"-O",CLOUDFLARED_BIN], capture_output=True)
         if result.returncode != 0:
-            result = subprocess.run(
-                ["curl", "-sL", download_url, "-o", CLOUDFLARED_BIN], 
-                capture_output=True, check=False
-            )
-        
+            result = subprocess.run(["curl","-sL",download_url,"-o",CLOUDFLARED_BIN], capture_output=True)
         if result.returncode != 0:
-             print(f"❌ Gagal mengunduh cloudflared. Error: {result.stderr.decode().strip() or 'Unknown'}")
-             return False
-
-        os.chmod(CLOUDFLARED_BIN, 0o755)
-        print(f"✅ cloudflared berhasil diunduh ke {CLOUDFLARED_BIN}")
+            print(f"❌ Gagal unduh cloudflared: {result.stderr.decode().strip()}")
+            return False
+        os.chmod(CLOUDFLARED_BIN,0o755)
+        print(f"✅ cloudflared siap di {CLOUDFLARED_BIN}")
         return True
-    except Exception as e: 
-        print(f"❌ Kesalahan umum saat mengunduh cloudflared: {e}"); 
-        return False
+    except Exception as e:
+        print(f"❌ Error saat download cloudflared: {e}"); return False
+
+def run_cloudflared_monitor():
+    def monitor():
+        log_file = "/tmp/cloudflared_tunnel.log"
+        while True:
+            # Cek proses
+            try:
+                pid = subprocess.run(f"pgrep -f {CLOUDFLARED_BIN}", shell=True, capture_output=True).stdout.decode().strip()
+                if not pid:
+                    # Restart cloudflared
+                    cmd = f"nohup {CLOUDFLARED_BIN} tunnel --url http://127.0.0.1:{PORT} --no-autoupdate --protocol http2 > {log_file} 2>&1 &"
+                    subprocess.run(cmd, shell=True)
+                    print("⚡ Tunnel cloudflared restart otomatis...")
+            except Exception as e:
+                print(f"⚠️ Monitor error: {e}")
+            # Print URL terbaru
+            try:
+                with open(log_file,"r") as f:
+                    m = re.search(r"(https://[^\s]+\.trycloudflare\.com)", f.read())
+                    if m: print(f"🌐 Public URL: {m.group(1)}")
+            except Exception: pass
+            time.sleep(10)
+    Thread(target=monitor, daemon=True).start()
 
 def run_flask_and_tunnel():
-    # Jalankan Flask Server di Thread terpisah
+    # Jalankan Flask
     def _run():
         try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
         except Exception as e: print("Flask run error:", e)
     Thread(target=_run, daemon=True).start()
     
-    # Hapus jeda 5 detik di sini.
-    
     if not ensure_cloudflared():
-        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
-        
-    try:
-        log_file_path = "/tmp/cloudflared_tunnel.log"
-        
-        # PENTING: Memaksa protokol http2 untuk stabilitas
-        cmd = f"nohup {CLOUDFLARED_BIN} tunnel --url http://127.0.0.1:{PORT} --no-autoupdate --protocol http2 > {log_file_path} 2>&1 &"
-        
-        subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-        
-    except Exception as e:
-        print(f"❌ Gagal jalankan cloudflared: {e}"); return
-        
-    public_url, start = None, time.time()
+        print("cloudflared tidak tersedia. Tidak bisa membuat tunnel.")
+        return
     
-    # Mencari URL publik dari file log secara senyap
-    while time.time() - start < CLOUDFLARE_TIMEOUT:
-        try: 
-            with open(log_file_path, 'r') as f:
-                log_content = f.read()
-                
-                # Cari pola URL publik
-                m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', log_content)
-                if m: 
-                    public_url = m.group(1)
-                    break
-                
-        except FileNotFoundError:
-            pass
-        
-        time.sleep(1) 
-
-    if public_url:
-        print("\n" + "="*50)
-        print("URL PUBLIK ANDA:")
-        print(f"  {public_url}")
-        print("="*50 + "\n")
-    else: 
-        print("\n" + "="*50)
-        print("❌ GAGAL MENDAPATKAN URL PUBLIK")
-        print(f"Periksa koneksi atau Colab. Log di {log_file_path}")
-        print("="*50 + "\n")
+    # Jalankan monitor auto-restart
+    run_cloudflared_monitor()
 
 if __name__ == "__main__":
     print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")
     try: os.makedirs(ROOT_PATH, exist_ok=True)
     except Exception: pass
     
-    # Jalankan Flask dan Cloudflare
     run_flask_and_tunnel()
     
-    # Loop utama untuk menjaga agar skrip tetap berjalan
+    # Loop utama biar Colab/script tetap hidup
     try:
-        print("Menjaga agar program tetap berjalan (Tekan Ctrl+C untuk mengakhiri)...")
+        print("Menjaga agar program tetap berjalan (Ctrl+C untuk stop)...")
         while True: time.sleep(1)
     except KeyboardInterrupt:
         print("Terminated."); sys.exit(0)
