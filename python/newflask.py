@@ -181,22 +181,17 @@ def run_flask_and_tunnel():
         except Exception as e: print("Flask run error:", e)
     Thread(target=_run, daemon=True).start()
     
-    # Jeda 5 detik
-    print("⏳ Menunggu 5 detik agar server Flask siap...")
-    time.sleep(5) 
+    # Hapus jeda 5 detik di sini.
     
     if not ensure_cloudflared():
         print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
         
     try:
-        print(f"Mencoba membuat terowongan Cloudflare (Timeout {CLOUDFLARE_TIMEOUT}s)...")
-        
         log_file_path = "/tmp/cloudflared_tunnel.log"
         
-        # PERBAIKAN UTAMA: Menambahkan '--protocol http2' untuk menghindari masalah buffer QUIC
+        # PENTING: Memaksa protokol http2 untuk stabilitas
         cmd = f"nohup {CLOUDFLARED_BIN} tunnel --url http://127.0.0.1:{PORT} --no-autoupdate --protocol http2 > {log_file_path} 2>&1 &"
         
-        # Menekan output dari command shell itu sendiri
         subprocess.run(cmd, shell=True, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
         
     except Exception as e:
