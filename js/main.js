@@ -37,6 +37,7 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const selectedItems = getSelectedItems();
         const allItems = getAllItems();
+        // Cek apakah semua item di direktori yang ditampilkan sudah terpilih
         const allSelected = selectedItems.length === allItems.length && allItems.length > 0;
 
         const selectedPaths = Array.from(selectedItems).map(item => 
@@ -46,10 +47,10 @@ document.addEventListener('DOMContentLoaded', function() {
         switch(actionId) {
             case 'selection-all':
                 if (allSelected) {
-                    // Jika semua sudah terpilih, batalkan semua seleksi
+                    // Batalkan semua seleksi
                     allItems.forEach(item => item.classList.remove('selected'));
                 } else {
-                    // Jika belum semua terpilih, pilih semua
+                    // Pilih semua item yang sedang ditampilkan
                     allItems.forEach(item => item.classList.add('selected'));
                 }
                 updateSelectionCount();
@@ -92,7 +93,9 @@ document.addEventListener('DOMContentLoaded', function() {
         alert(message);
         
         if (shouldCloseModal) {
+            // Reset seleksi visual
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
+            // Keluar dari mode seleksi
             toggleSelectionMode(false); 
         }
     }
@@ -122,7 +125,7 @@ document.addEventListener('DOMContentLoaded', function() {
         menuList.innerHTML = '';
         const selectionActions = [];
         
-        // Aksi Pilih Semua / Batalkan Semua
+        // Aksi Pilih Semua / Batalkan Semua (Dinamis)
         if (allSelected) {
             selectionActions.push({ id: 'selection-all', icon: 'fas fa-times-circle', label: `Batalkan Semua Seleksi` });
         } else {
@@ -188,32 +191,30 @@ document.addEventListener('DOMContentLoaded', function() {
         isSelecting = enable;
         
         if (enable) {
-            // --- MODIFIKASI INI ---
-            // Tombol PLUS (Menu Cepat) Dibuat non-interaktif dan Ikonnya Tidak Berubah
+            // Tombol PLUS (Menu Cepat): Dibuat tidak interaktif dan ikon tetap +
             menuToggle.style.pointerEvents = 'none'; 
             menuToggle.style.opacity = '0.5'; 
-            menuToggle.querySelector('i').className = 'fas fa-plus'; // Ikon tetap PLUS
-            // ---------------------
+            menuToggle.querySelector('i').className = 'fas fa-plus'; 
 
-            // 2. AKTIFKAN TOMBOL BROWSER sebagai Menu Hamburger
+            // Tombol BROWSER menjadi Menu Hamburger
             browserLink.style.pointerEvents = 'auto';
             browserLink.style.opacity = '1'; 
             browserLink.querySelector('i').className = 'fas fa-bars'; 
             
         } else {
-            // Saat KELUAR Mode Seleksi
+            // KELUAR Mode Seleksi
             
-            // 1. AKTIFKAN KEMBALI TOMBOL PLUS (Menu Cepat)
+            // Tombol PLUS kembali normal
             menuToggle.style.pointerEvents = 'auto'; 
             menuToggle.style.opacity = '1'; 
             menuToggle.querySelector('i').className = 'fas fa-plus'; 
             
-            // 2. KEMBALI ke ikon Globe/Browser
+            // Tombol Hamburger kembali menjadi Globe/Browser
             browserLink.style.pointerEvents = 'auto';
             browserLink.style.opacity = '1'; 
             browserLink.querySelector('i').className = 'fas fa-globe';
             
-            // Hapus seleksi visual (hanya jika keluar mode)
+            // Hapus seleksi visual
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
         }
     }
@@ -252,12 +253,14 @@ document.addEventListener('DOMContentLoaded', function() {
          const item = e.target.closest('.file-item');
          if (!item) return;
          
+         // Jika dalam mode seleksi, klik berfungsi untuk toggle seleksi
          if (isSelecting) {
              e.preventDefault(); 
              toggleItemSelection(item);
          } else if (pressTimer) {
              clearTimeout(pressTimer);
          }
+         // Jika tidak dalam mode seleksi, biarkan link folder berjalan
     });
 
     // DESKTOP/Mouse Events
@@ -267,6 +270,7 @@ document.addEventListener('DOMContentLoaded', function() {
          
          clearTimeout(pressTimer);
          pressTimer = setTimeout(() => {
+             // Long press memicu mode seleksi
              if (!isSelecting) {
                  e.preventDefault(); 
                  toggleSelectionMode(true);
@@ -296,9 +300,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
     // --- 4. KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
     document.addEventListener('click', function(e) {
+        // Cek apakah klik BUKAN pada item, BUKAN pada menu, BUKAN pada tombol di footer
         const isOutsideSelectionArea = !e.target.closest('.file-item') && !e.target.closest('#menu-overlay') && !e.target.closest('.fixed-footer');
 
         if (isSelecting && isOutsideSelectionArea) {
+            // Keluar mode seleksi hanya jika clipboard kosong (agar tombol paste tetap terlihat)
             if (!isClipboardPopulated) {
                 toggleSelectionMode(false);
             }
@@ -321,6 +327,8 @@ document.addEventListener('DOMContentLoaded', function() {
             gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
             sessionStorage.setItem('viewMode', 'list');
         }
+        
+        // PENTING: Seleksi TIDAK direset di sini, sesuai permintaan Anda.
     };
     setView(isGridView);
 
@@ -345,9 +353,10 @@ document.addEventListener('DOMContentLoaded', function() {
             
             if (isSelecting || isClipboardPopulated) { 
                 menuModal.querySelector('h3').textContent = 'Menu Aksi Seleksi';
-                updateSelectionMenu(); 
+                updateSelectionMenu(); // Tampilkan menu aksi seleksi
             } else {
                 menuModal.querySelector('h3').textContent = 'Menu Aksi Cepat';
+                // Tampilkan menu cepat default saat tidak ada seleksi/clipboard
                 menuModal.querySelector('.menu-list').innerHTML = `
                      <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
                      <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
@@ -367,7 +376,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
 
-    // Tombol PLUS (Menu Cepat) - TIDAK AKAN BERFUNGSI DALAM MODE SELEKSI/CLIPBOARD
+    // Tombol PLUS (Hanya untuk Menu Cepat / Tidak berfungsi saat seleksi)
     menuToggle.addEventListener('click', function(e) {
         e.preventDefault();
         if (!isSelecting && !isClipboardPopulated) { 
