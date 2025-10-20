@@ -55,8 +55,7 @@ a { text-decoration: none; color: inherit; }
     position: relative;
     /* LIST VIEW: Border default 1px transparent */
     border: 1px solid transparent; 
-    
-    /* PERBAIKAN 1: Tambah box-shadow transparan di kondisi normal List View */
+    /* Tambah box-shadow transparan di kondisi normal List View */
     box-shadow: 0 0 5px rgba(0, 0, 0, 0);
 }
 
@@ -123,14 +122,13 @@ a { text-decoration: none; color: inherit; }
     border-radius: 8px;
     overflow: hidden; 
     
-    /* PERBAIKAN 2: Set default border Grid menjadi 2px agar konsisten dengan border seleksi */
+    /* Set default border Grid menjadi 2px agar konsisten dengan border seleksi */
     border: 2px solid #ddd; 
-    
     /* Tambah box-shadow transparan di kondisi normal Grid View */
     box-shadow: 0 0 5px rgba(0, 0, 0, 0); 
 }
 
-/* PERBAIKAN 3: Hanya ubah warna border Grid saat seleksi, pertahankan 2px */
+/* Hanya ubah warna border Grid saat seleksi, pertahankan 2px */
 .file-list.grid-view .file-item.selected,
 .file-list.grid-view .file-item.selected:hover {
      border: 2px solid #007bff; 
@@ -203,23 +201,41 @@ a { text-decoration: none; color: inherit; }
     }
 }
 
+---
 
-/* FIXED FOOTER (NAVBAR) */
+## 🛠️ Perbaikan Fixed Footer (Navbar)
+
 .fixed-footer { 
     position: fixed; bottom: 0; width: 100%; max-width: 800px; 
     background-color: #212529; color: white; 
+    /* Jaga box-shadow footer agar tetap konsisten */
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; 
     display: flex; justify-content: space-around; align-items: center; 
     height: 55px;
 }
 .nav-icon { 
     display: flex; flex-direction: column; align-items: center; 
-    padding: 5px; color: #ced4da; transition: color 0.2s;
+    /* Tambahkan margin atau padding di dalam agar area klik stabil */
+    padding: 5px; 
+    color: #ced4da; 
+    transition: color 0.2s, opacity 0.2s; /* Tambah transisi opacity */
     cursor: pointer;
+    /* PERBAIKAN: Set box-shadow default ke 'none' agar tidak ada pergeseran saat hover */
+    box-shadow: none;
 }
-.nav-icon i { font-size: 1.5em; }
+.nav-icon i { 
+    font-size: 1.5em; 
+    /* Jaga agar ikon tidak bergeser */
+    line-height: 1; 
+}
 .nav-icon span { display: none; }
-.nav-icon:hover { color: #ffffff; }
+.nav-icon:hover { 
+    color: #ffffff; 
+    /* Set box-shadow eksplisit ke 'none' */
+    box-shadow: none; 
+}
+
+---
 
 /* --- MENU OVERLAY STYLES --- */
 #menu-overlay {
