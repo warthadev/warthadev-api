@@ -1,18 +1,19 @@
 #!/usr/bin/env python3
-# newflask.py - versi diperkuat: DNS-check + auto-retry untuk trycloudflare
-import os, sys, math, time, re, shutil, logging, subprocess, signal, socket, json
+# newflask.py - ready-to-use for Colab: Flask + Cloudflared quick tunnel
+# Behavior: suppress raw cloudflared logs; only print final public URL after DNS resolved.
+import os, sys, math, time, re, shutil, logging, subprocess, signal, socket
 from threading import Thread
 from werkzeug.serving import run_simple
 from flask import Flask, render_template, send_file, request
 
-# --- KONFIGURASI ---
+# --- CONFIG ---
 ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
 PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
 CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
-CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "60"))  # waktu tunggu awal (detik)
-DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))  # waktu tunggu saat menunggu DNS propagate
-CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))  # max restart attempts
-RETRY_DELAY = float(os.environ.get("TUNNEL_RETRY_DELAY", "2"))  # delay antar read stdout
+CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "60"))   # wait for URL in stdout
+DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))   # wait for DNS propagation
+CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))
+RETRY_DELAY = float(os.environ.get("TUNNEL_RETRY_DELAY", "0.5"))
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 try:
@@ -24,7 +25,7 @@ TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
 STATIC_FOLDER_ROOT = BASE_DIR
 os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
-# --- UTILITY FUNCTIONS ---
+# --- UTILITIES ---
 def format_size(size_bytes):
     if size_bytes is None or size_bytes < 0: return "0 B"
     if size_bytes == 0: return "0 B"
@@ -143,15 +144,12 @@ def open_file():
     try: return send_file(abs_path, as_attachment=True)
     except Exception as e: return f"Failed to send file: {e}",500
 
-# --- DNS CHECK HELPERS (DOH) ---
-def doh_resolves(hostname, timeout=5):
-    """
-    Cek DNS resolution via 2 public DoH endpoints:
-     - Cloudflare: https://cloudflare-dns.com/dns-query?name=<>&type=A (dns-json)
-     - Google:     https://dns.google/resolve?name=<>&type=A
-    Return True kalau ada A/AAAA
-    """
-    import requests
+# --- DNS CHECK via DoH (Cloudflare & Google) ---
+def doh_resolves(hostname, timeout=3):
+    try:
+        import requests
+    except Exception:
+        return False
     urls = [
         f"https://cloudflare-dns.com/dns-query?name={hostname}&type=A",
         f"https://dns.google/resolve?name={hostname}&type=A",
@@ -162,55 +160,40 @@ def doh_resolves(hostname, timeout=5):
     for u in urls:
         try:
             r = requests.get(u, headers=headers, timeout=timeout)
-            if r.status_code == 200:
-                try:
-                    j = r.json()
-                    # Google uses "Answer"; Cloudflare JSON may use "Answer" too.
-                    if isinstance(j, dict):
-                        if j.get("Answer") or j.get("answer") or j.get("Status") == 0 and j.get("Answer"):
-                            return True
-                        # For google: 'Answer' exists when records present
-                        if j.get("Answer"):
-                            return True
-                except Exception:
-                    continue
+            if r.status_code != 200: continue
+            j = r.json()
+            if isinstance(j, dict) and j.get("Answer"):
+                return True
+            # Google may return 'Answer' key; Cloudflare returns similar structure
         except Exception:
             continue
-    # final fallback: try socket.getaddrinfo (may be blocked in some env)
     try:
         socket.getaddrinfo(hostname, None)
         return True
     except Exception:
         return False
 
-# --- CLOUDFLARE ENSURE + RUN + RETRY ---
+# --- Cloudflared helpers ---
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
-        print("Mengunduh cloudflared...")
         rc = os.system(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}")
-        if rc!=0:
+        if rc != 0:
             os.system(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}")
-        os.chmod(CLOUDFLARED_BIN,0o755)
-        return True
-    except Exception as e:
-        print("Gagal unduh cloudflared:", e)
+        os.chmod(CLOUDFLARED_BIN, 0o755)
+        return os.path.exists(CLOUDFLARED_BIN)
+    except Exception:
         return False
 
-def start_cloudflared(proc_args):
-    """
-    Start cloudflared subprocess dengan preexec_fn=os.setsid supaya tetap hidup.
-    Return subprocess.Popen instance.
-    """
+def start_cloudflared(args):
     try:
         proc = subprocess.Popen(
-            proc_args,
+            args,
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
             text=True, bufsize=1, preexec_fn=os.setsid
         )
         return proc
-    except Exception as e:
-        print("Gagal start cloudflared:", e)
+    except Exception:
         return None
 
 def stop_proc(proc):
@@ -223,34 +206,33 @@ def stop_proc(proc):
     except Exception:
         pass
 
+# --- Main runner: silent cloudflared logging; only prints final URL when DNS resolved ---
 def run_flask_and_tunnel():
-    # run flask non-daemon
+    # run flask in non-daemon thread
     def _run():
-        try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
-        except Exception as e: print("Flask run error:", e)
+        try:
+            run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
+        except Exception:
+            pass
     t = Thread(target=_run)
     t.start()
 
     if not ensure_cloudflared():
-        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
+        print("cloudflared unavailable")
+        return
 
+    attempts = 0
     proc = None
-    restarts = 0
-    public_url = None
-
-    while restarts <= CLOUDFLARED_RESTARTS:
-        restarts += 1
-        print(f"[TUNNEL] Mencoba membuat terowongan (attempt {restarts}/{CLOUDFLARED_RESTARTS})...")
+    while attempts < CLOUDFLARED_RESTARTS:
+        attempts += 1
         args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]
         proc = start_cloudflared(args)
         if not proc:
-            print("[TUNNEL] Gagal start cloudflared, retrying...")
-            time.sleep(2)
+            time.sleep(1)
             continue
 
-        # baca stdout cari URL sampai CLOUDFLARE_TIMEOUT
-        start = time.time()
         public_url = None
+        start = time.time()
         while time.time() - start < CLOUDFLARE_TIMEOUT:
             try:
                 line = proc.stdout.readline()
@@ -259,60 +241,49 @@ def run_flask_and_tunnel():
             if not line:
                 time.sleep(RETRY_DELAY)
                 continue
-            line_str = line.strip()
-            print(line_str)
-            # cari trycloudflare url
-            m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line_str)
+            m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
             if m:
                 public_url = m.group(1)
-                print(f"[TUNNEL] URL ditemukan di stdout: {public_url}")
                 break
 
         if not public_url:
-            print("[TUNNEL] Tidak dapat menemukan URL di log dalam batas waktu. Akan restart cloudflared dan coba lagi.")
             stop_proc(proc)
-            time.sleep(2)
+            time.sleep(1)
             continue
 
-        # Setelah dapat public_url -> cek DNS resolve via DOH sampai DNS_CHECK_TIMEOUT
         hostname = re.sub(r'^https?://', '', public_url).split('/')[0]
-        print(f"[DNS] Menunggu hostname {hostname} ter-resolve (timeout {DNS_CHECK_TIMEOUT}s)...")
         dns_start = time.time()
         resolved = False
         while time.time() - dns_start < DNS_CHECK_TIMEOUT:
             if doh_resolves(hostname, timeout=3):
                 resolved = True
                 break
-            print("[DNS] Belum ter-resolve, menunggu 1s lalu retry...")
             time.sleep(1)
 
         if resolved:
-            print("\n" + "="*50)
-            print("URL PUBLIK ANDA (dan sudah resolved):")
-            print(f"  {public_url}")
-            print("="*50 + "\n")
-            # biarkan proses cloudflared berjalan; keluar dari loop restart attempts
+            # only output final URL (minimal)
+            print(public_url)
             return
         else:
-            print("[DNS] Hostname masih belum ter-resolve setelah timeout. Akan restart cloudflared dan coba lagi.")
             stop_proc(proc)
-            time.sleep(2)
+            time.sleep(1)
             continue
 
-    # jika sampai sini semua percobaan gagal tapi proses masih berjalan, biarkan berjalan dan beri instruksi
+    # all attempts exhausted
     if proc and proc.poll() is None:
-        print("[TUNNEL] Semua percobaan restart habis, tapi proses cloudflared masih berjalan — periksa log di atas.")
+        # process left running but DNS unresolved - do not print logs; print minimal hint
+        print("tunnel-created-but-hostname-unresolved")
     else:
-        print("[TUNNEL] Semua percobaan gagal. Tidak ada tunnel aktif.")
+        print("tunnel-failed")
 
-# --- MAIN ---
-if __name__=="__main__":
-    print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")
-    os.makedirs(ROOT_PATH,exist_ok=True)
+# --- ENTRYPOINT ---
+if __name__ == "__main__":
+    os.makedirs(ROOT_PATH, exist_ok=True)
     try:
         run_flask_and_tunnel()
-        print("Menjaga program tetap hidup (Ctrl+C untuk keluar)...")
+        # keep script alive so cloudflared & Flask keep running in Colab until user interrupts
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Terminated."); sys.exit(0)
+        sys.exit(0)
+```0
