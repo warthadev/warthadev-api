@@ -149,12 +149,32 @@ def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
         print("Mengunduh cloudflared...")
-        rc = os.system(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}")
-        if rc != 0:
-            os.system(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}")
+        # PERBAIKAN 1: Menggunakan subprocess.run untuk pengunduhan yang lebih eksplisit
+        download_url = "https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64"
+        
+        # Coba wget
+        result = subprocess.run(
+            ["wget", "-q", download_url, "-O", CLOUDFLARED_BIN], 
+            capture_output=True, check=False
+        )
+        
+        # Jika wget gagal, coba curl
+        if result.returncode != 0:
+            result = subprocess.run(
+                ["curl", "-sL", download_url, "-o", CLOUDFLARED_BIN], 
+                capture_output=True, check=False
+            )
+        
+        if result.returncode != 0:
+             print(f"❌ Gagal mengunduh cloudflared. Error: {result.stderr.decode().strip() or 'Unknown'}")
+             return False
+
         os.chmod(CLOUDFLARED_BIN, 0o755)
+        print(f"✅ cloudflared berhasil diunduh ke {CLOUDFLARED_BIN}")
         return True
-    except Exception: return False
+    except Exception as e: 
+        print(f"❌ Kesalahan umum saat mengunduh cloudflared: {e}"); 
+        return False
 
 def run_flask_and_tunnel():
     def _run():
@@ -167,10 +187,14 @@ def run_flask_and_tunnel():
         
     try:
         print(f"Mencoba membuat terowongan Cloudflare (Timeout {CLOUDFLARE_TIMEOUT}s)...")
-        # Menambahkan '--log-level silent' untuk mengurangi output, tapi tetap memproses stdout
+        
+        # PERBAIKAN 2: Menggunakan Popen yang lebih robust tanpa bufsize=1
         proc = subprocess.Popen(
-            [CLOUDFLARED_BIN,"tunnel","--url",f"http://127.0.0.1:{PORT}","--no-autoupdate"],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
+            [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, # Hapus bufsize=1
+            # Tambahkan preexec_fn untuk menjalankan proses di grup proses baru
+            # Ini membantu mencegah Colab memutus proses anak secara tidak sengaja
+            preexec_fn=os.setsid 
         )
     except Exception as e:
         print("Gagal jalankan cloudflared:", e); return
@@ -179,8 +203,11 @@ def run_flask_and_tunnel():
     
     # Mencari URL publik
     while time.time() - start < CLOUDFLARE_TIMEOUT:
-        try: line = proc.stdout.readline()
-        except Exception: line = ""
+        try: 
+            # Menggunakan readline tanpa timeout eksplisit, tapi dibatasi oleh loop time.time()
+            line = proc.stdout.readline()
+        except Exception: 
+            line = ""
         
         if line:
             print(line.strip())
@@ -189,20 +216,24 @@ def run_flask_and_tunnel():
                 public_url = m.group(1)
                 print(f"URL ditemukan: {public_url}")
                 break
-        else: 
-            # Jika tidak ada output, tunggu sebentar
-            time.sleep(0.5) 
+        
+        # Cek apakah proses Cloudflared berhenti terlalu cepat
+        if proc.poll() is not None and not public_url:
+            print(f"❌ Proses Cloudflared berhenti dengan kode {proc.returncode} sebelum URL ditemukan.")
+            break
+        
+        time.sleep(0.5) 
             
     if public_url:
         print("\n" + "="*50)
         print("URL PUBLIK ANDA:")
         print(f"  {public_url}")
         print("="*50 + "\n")
-        # Setelah URL ditemukan, biarkan proses berjalan di latar belakang
     else: 
         print("Gagal mendapatkan URL Cloudflare dalam batas waktu.");
-        # PERBAIKAN: Jika gagal mendapatkan URL, biarkan proses Cloudflared berjalan
-        # Siapa tahu URL akan muncul belakangan.
+        # PERBAIKAN 3: Jika gagal mendapatkan URL, cetak log error terakhir
+        if proc.poll() is not None:
+             print("Pesan: Terowongan mungkin tidak stabil atau port tidak merespons.")
         print("Proses Cloudflared dibiarkan berjalan. Cek output log di atas.");
 
 if __name__ == "__main__":
