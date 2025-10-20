@@ -31,9 +31,9 @@ a { text-decoration: none; color: inherit; }
     padding: 8px 15px; 
     border-radius: 4px; 
     font-size: 0.9em; 
-    white-space: nowrap; /* Mencegah pemotongan baris di tengah path */
+    white-space: nowrap; 
     overflow: hidden;
-    text-overflow: ellipsis; /* Tampilkan ... di akhir */
+    text-overflow: ellipsis; 
 }
 
 .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
@@ -49,22 +49,26 @@ a { text-decoration: none; color: inherit; }
     align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
-    transition: background-color 0.2s, border 0.2s; /* Tambah transisi border */
+    transition: background-color 0.2s, border 0.2s; 
     cursor: default; 
     position: relative;
-    border: 1px solid transparent; /* Border transparan default */
+    border: 1px solid transparent; 
 }
-.file-item:hover {
+
+/* --- PERBAIKAN 1: Hover hanya pada item yang TIDAK TERPILIH --- */
+/* Hover normal hanya berlaku jika item belum terseleksi */
+.file-item:not(.selected):hover {
     background-color: #f8f9fa; 
     cursor: pointer;
 }
+
 .file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
 
 /* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal (menggunakan Flexbox) */
 .file-text-container { 
     flex: 1; 
     overflow: hidden; 
-    display: flex; /* Diubah ke flex */
+    display: flex; 
     align-items: center;
     justify-content: space-between;
     min-width: 0;
@@ -74,13 +78,13 @@ a { text-decoration: none; color: inherit; }
     font-weight: 500; 
     min-width: 0;
     overflow: hidden;
-    text-overflow: ellipsis; /* Teks nama file terpotong rapi */
+    text-overflow: ellipsis; 
     white-space: nowrap;
 }
 .file-size { 
     font-size: 0.8em; 
     color: #6c757d; 
-    margin-left: auto; /* Mendorong ke kanan */
+    margin-left: auto; 
     padding-left: 15px; 
     white-space: nowrap;
 }
@@ -91,7 +95,9 @@ a { text-decoration: none; color: inherit; }
 }
 
 /* --- STYLE UNTUK SELEKSI BARU --- */
-.file-item.selected {
+/* PERBAIKAN 2: Pastikan style seleksi tetap kuat, bahkan saat di-hover, untuk List View */
+.file-item.selected,
+.file-item.selected:hover { 
     background-color: #e2f0ff; /* Warna latar belakang untuk item terpilih */
     border: 1px solid #007bff; /* Border biru untuk penekanan */
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
@@ -115,7 +121,10 @@ a { text-decoration: none; color: inherit; }
     overflow: hidden; 
     border: 1px solid #ddd; /* Border default di grid */
 }
-.file-list.grid-view .file-item.selected {
+
+/* PERBAIKAN 3: Pastikan border biru Grid tetap terlihat saat di-hover/seleksi */
+.file-list.grid-view .file-item.selected,
+.file-list.grid-view .file-item.selected:hover {
      border: 2px solid #007bff; /* Border sedikit lebih tebal saat terpilih di grid */
 }
 
