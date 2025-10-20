@@ -1,6 +1,24 @@
 /* --- CSS Umum --- */
-body { font-family: sans-serif; padding: 0; margin: 0; background-color: #f4f4f4; }
-.container { max-width: 800px; margin: auto; background-color: white; min-height: 100vh; padding: 0; padding-bottom: 60px; }
+body { 
+    font-family: sans-serif; 
+    padding: 0; 
+    margin: 0; 
+    background-color: #f4f4f4; 
+    
+    /* PERBAIKAN UTAMA: Cegah Seleksi Teks di Seluruh Halaman */
+    -webkit-user-select: none; /* Chrome, Safari, Opera */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE/Edge */
+    user-select: none;         /* Standard property */
+}
+.container { 
+    max-width: 800px; 
+    margin: auto; 
+    background-color: white; 
+    min-height: 100vh; 
+    padding: 0; 
+    padding-bottom: 60px; 
+}
 a { text-decoration: none; color: inherit; }
 
 /* HEADER INFORMASI */
@@ -204,7 +222,7 @@ a { text-decoration: none; color: inherit; }
     width: 100%; 
     max-width: 800px; 
     
-    /* PERBAIKAN STABILITAS 1: Centering horizontal agar footer terkunci di tengah */
+    /* Centering horizontal agar footer terkunci di tengah */
     left: 50%; 
     transform: translateX(-50%);
 
@@ -213,8 +231,7 @@ a { text-decoration: none; color: inherit; }
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1); 
     z-index: 100; 
     display: flex; 
-    /* Ubah justify-content agar item flex memiliki lebar yang sama */
-    justify-content: space-around; /* Tetap pertahankan ini jika Anda suka tampilannya */
+    justify-content: space-around; 
     align-items: center; 
     height: 55px;
 }
@@ -227,9 +244,9 @@ a { text-decoration: none; color: inherit; }
     transition: color 0.2s;
     cursor: pointer;
     
-    /* PERBAIKAN STABILITAS 2: Pastikan setiap nav-icon mengambil lebar yang sama */
-    flex-grow: 1; /* Memberi ruang yang sama untuk setiap tombol */
-    flex-basis: 0; /* Base width nol, sehingga pertumbuhan berdasarkan sisa ruang */
+    /* Pastikan setiap nav-icon mengambil lebar yang sama */
+    flex-grow: 1; 
+    flex-basis: 0; 
 }
 .nav-icon i { font-size: 1.5em; }
 .nav-icon span { display: none; }
