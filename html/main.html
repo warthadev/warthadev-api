@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Colab FS</title>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}"> 
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
@@ -18,7 +18,6 @@
                         <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
                     </div>
                 </div>
-
                 {% if drive_total > 0 %}
                 <div class="disk-item">
                     <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
@@ -62,28 +61,25 @@
                 {% endif %}
             {% endfor %}
         </div>
-        
-        <!-- MENU OVERLAY -->
-        <div id="menu-overlay">
+
+        <div id="menu-overlay" class="hidden">
             <div class="menu-modal">
                 <h3>Menu Aksi <button class="close-btn" id="close-menu">&times;</button></h3>
-                <div class="menu-list"></div>
+                <div class="menu-list" id="menu-list"></div>
             </div>
         </div>
 
         <div class="fixed-footer">
             <a href="#" class="nav-icon" id="menu-toggle"><i class="fas fa-plus"></i></a>
             <a href="#" id="grid-toggle" class="nav-icon"><i class="fas fa-th-large"></i><span id="view-label" style="display:none;">Grid</span></a>
-
             {% if path != root_path %}
             <a href="/?path={{ root_path }}" class="nav-icon"><i class="fas fa-home"></i></a>
             <a href="#" id="back-button" class="nav-icon"><i class="fas fa-arrow-left"></i></a>
             {% endif %}
-
             <a href="#" id="browser-link" class="nav-icon"><i class="fas fa-globe"></i></a>
         </div>
     </div>
 
-    <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    <script src="/tmp/warthadev-api/js/main.js"></script>
 </body>
 </html>
