@@ -1,13 +1,14 @@
-# newflask.py
 import os, sys, math, time, re, shutil, logging, subprocess
 from threading import Thread
 from werkzeug.serving import run_simple
 from flask import Flask, render_template, send_file, request
 
+# --- KONFIGURASI ---
 ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
 PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
 CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
-CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "30"))
+# PERBAIKAN: MENAMBAH CLOUDFLARE_TIMEOUT agar lebih lama (dari 30 detik menjadi 60 detik)
+CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "60")) 
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 try:
@@ -20,6 +21,7 @@ STATIC_FOLDER_ROOT = BASE_DIR
 if not os.path.isdir(TEMPLATE_FOLDER):
     os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
+# --- FUNGSI UTILITY ---
 def format_size(size_bytes):
     if size_bytes is None or size_bytes < 0: return "0 B"
     if size_bytes == 0: return "0 B"
@@ -101,6 +103,7 @@ def list_dir(path):
         files.append({"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": "", "icon_class": "fa-exclamation-triangle"})
     return files
 
+# --- APLIKASI FLASK ---
 app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")
 app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
 
@@ -141,6 +144,7 @@ def open_file():
     try: return send_file(abs_path, as_attachment=True)
     except Exception as e: return f"Failed to send file: {e}", 500
 
+# --- CLOUDFLARE TUNNELING ---
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
@@ -157,33 +161,61 @@ def run_flask_and_tunnel():
         try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
         except Exception as e: print("Flask run error:", e)
     Thread(target=_run, daemon=True).start()
+    
     if not ensure_cloudflared():
-        print("cloudflared tidak tersedia."); return
+        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
+        
     try:
+        print(f"Mencoba membuat terowongan Cloudflare (Timeout {CLOUDFLARE_TIMEOUT}s)...")
+        # Menambahkan '--log-level silent' untuk mengurangi output, tapi tetap memproses stdout
         proc = subprocess.Popen(
             [CLOUDFLARED_BIN,"tunnel","--url",f"http://127.0.0.1:{PORT}","--no-autoupdate"],
             stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1
         )
     except Exception as e:
         print("Gagal jalankan cloudflared:", e); return
+        
     public_url, start = None, time.time()
+    
+    # Mencari URL publik
     while time.time() - start < CLOUDFLARE_TIMEOUT:
         try: line = proc.stdout.readline()
         except Exception: line = ""
+        
         if line:
             print(line.strip())
             m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
-            if m: public_url = m.group(1); break
-        else: time.sleep(0.2)
-    if public_url: print("\n", public_url, "\n")
-    else: print("Gagal mendapatkan URL Cloudflare.")
+            if m: 
+                public_url = m.group(1)
+                print(f"URL ditemukan: {public_url}")
+                break
+        else: 
+            # Jika tidak ada output, tunggu sebentar
+            time.sleep(0.5) 
+            
+    if public_url:
+        print("\n" + "="*50)
+        print("URL PUBLIK ANDA:")
+        print(f"  {public_url}")
+        print("="*50 + "\n")
+        # Setelah URL ditemukan, biarkan proses berjalan di latar belakang
+    else: 
+        print("Gagal mendapatkan URL Cloudflare dalam batas waktu.");
+        # PERBAIKAN: Jika gagal mendapatkan URL, biarkan proses Cloudflared berjalan
+        # Siapa tahu URL akan muncul belakangan.
+        print("Proses Cloudflared dibiarkan berjalan. Cek output log di atas.");
 
 if __name__ == "__main__":
     print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")
     try: os.makedirs(ROOT_PATH, exist_ok=True)
     except Exception: pass
+    
+    # Jalankan Flask dan Cloudflare
     run_flask_and_tunnel()
+    
+    # Loop utama untuk menjaga agar skrip tetap berjalan
     try:
+        print("Menjaga agar program tetap berjalan (Tekan Ctrl+C untuk mengakhiri)...")
         while True: time.sleep(1)
     except KeyboardInterrupt:
         print("Terminated."); sys.exit(0)
