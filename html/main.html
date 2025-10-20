@@ -33,7 +33,7 @@
                 {% endif %}
             </div>
 
-            <div class="current-path"><strong>Path:</strong> <code>{{ path }}</code></div>
+            <div class="current-path"><strong>Path:</strong> <code id="current-path-code">{{ path }}</code></div>
         </div>
 
         <div id="file-list" class="file-list">
@@ -132,6 +132,7 @@
             let pressTimer;
             const LONG_PRESS_THRESHOLD = 500; 
             let isSelecting = false;
+            let isClipboardPopulated = false; // State untuk mengaktifkan Paste
             
             // --- FUNGSI UTILITY ---
             function getSelectedItems() {
@@ -149,29 +150,40 @@
             
             function handleSelectionAction(actionId, count) {
                 let message = '';
-                let shouldCloseModal = true; // Default: tutup modal setelah aksi
+                let shouldCloseModal = true; 
+                
+                const selectedItems = getSelectedItems();
+                const selectedPaths = Array.from(selectedItems).map(item => 
+                    item.getAttribute('data-path') || item.getAttribute('href')
+                ).filter(path => path);
 
                 switch(actionId) {
                     case 'selection-all':
                         fileList.querySelectorAll('.file-item').forEach(item => item.classList.add('selected'));
                         updateSelectionCount();
-                        shouldCloseModal = false; // PERUBAHAN: JANGAN TUTUP MODAL
-                        return; // Keluar dari fungsi karena aksi sudah selesai
+                        shouldCloseModal = false;
+                        return;
+                    case 'selection-copy':
+                        // ASUMSI: Kirim data path ke backend untuk disimpan sebagai clipboard
+                        message = `Menyalin ${count} item! (Siap untuk Tempel)`;
+                        isClipboardPopulated = true; 
+                        break;
+                    case 'selection-move':
+                        // ASUMSI: Kirim data path ke backend untuk disimpan sebagai clipboard cut
+                        message = `Memotong ${count} item! (Siap untuk Tempel)`;
+                        isClipboardPopulated = true; 
+                        break;
+                    case 'selection-paste':
+                        message = `Tempel item dari clipboard ke ${document.getElementById('current-path-code').textContent.trim()}!`;
+                        isClipboardPopulated = false; // Reset clipboard setelah paste
+                        break;
                     case 'selection-slideshow':
                         message = `Memulai Slideshow untuk ${count} gambar!`;
                         break;
-                    case 'selection-copy':
-                        message = `Menyalin ${count} item ke clipboard!`;
-                        break;
-                    case 'selection-paste':
-                        message = `Tempel item dari clipboard!`;
-                        break;
-                    case 'selection-move':
-                        message = `Pindahkan ${count} item!`;
-                        break;
                     case 'selection-delete':
-                        if (confirm(`Yakin ingin menghapus ${count} item yang terpilih?`)) {
+                        if (confirm(`Yakin ingin menghapus ${count} item yang terpilih?\nPaths:\n${selectedPaths.join('\n')}`)) {
                             message = `Menghapus ${count} item!`;
+                            // fetch('/api/delete', { method: 'POST', body: JSON.stringify({ paths: selectedPaths }) })
                         } else {
                             return;
                         }
@@ -201,38 +213,44 @@
                 let allImages = count > 0;
                 let isSingleCompress = count === 1;
                 
+                // Logika cek file type untuk Slideshow/Extract
                 selectedItems.forEach(item => {
                     const isFile = item.classList.contains('file-file');
-                    const path = item.getAttribute('data-path') || item.getAttribute('href') || '';
-                    
+                    const path = item.getAttribute('data-path') || '';
                     if (isFile && !/\.(jpe?g|png|gif|webp)$/i.test(path)) { allImages = false; }
                     if (isFile && !/\.(zip|rar|7z|tar\.gz)$/i.test(path)) { isSingleCompress = false; }
                     if (!isFile || count > 1) { isSingleCompress = false; }
                     if (!isFile) { allImages = false; }
                 });
 
-                // --- REGENERASI ISI MENU HAMBURGER (Kondisional) ---
+                // --- REGENERASI ISI MENU HAMBURGER ---
                 menuList.innerHTML = '';
                 const selectionActions = [];
                 
-                if (allImages) { selectionActions.push({ id: 'selection-slideshow', icon: 'fas fa-images', label: `Slideshow (${count})` }); }
+                selectionActions.push({ id: 'selection-all', icon: 'fas fa-check-double', label: `Pilih Semua` });
                 
-                selectionActions.push(
-                    { id: 'selection-all', icon: 'fas fa-check-double', label: `Pilih Semua` },
-                    { id: 'selection-copy', icon: 'fas fa-copy', label: `Salin (${count})` },
-                    { id: 'selection-move', icon: 'fas fa-external-link-alt', label: `Pindahkan` }
-                );
-                
-                if (count > 0) {
-                     selectionActions.push({ id: 'selection-compress', icon: 'fas fa-file-archive', label: `Compress (${count})` });
-                }
-                
-                if (isSingleCompress) {
-                     selectionActions.push({ id: 'selection-extract', icon: 'fas fa-file-export', label: `Extract` });
+                // Tambahkan Paste jika clipboard terisi (di folder ini)
+                if (isClipboardPopulated && count === 0) { 
+                     selectionActions.push({ id: 'selection-paste', icon: 'fas fa-paste', label: `Tempel dari Clipboard` });
                 }
                 
                 if (count > 0) {
-                     selectionActions.push({ id: 'selection-delete', icon: 'fas fa-trash', label: `Hapus (${count})` });
+                    if (allImages) { selectionActions.push({ id: 'selection-slideshow', icon: 'fas fa-images', label: `Slideshow (${count})` }); }
+                    
+                    selectionActions.push(
+                        { id: 'selection-copy', icon: 'fas fa-copy', label: `Salin (${count})` },
+                        { id: 'selection-move', icon: 'fas fa-external-link-alt', label: `Pindahkan (${count})` }
+                    );
+                    
+                    if (count > 0) {
+                         selectionActions.push({ id: 'selection-compress', icon: 'fas fa-file-archive', label: `Compress (${count})` });
+                    }
+                    
+                    if (isSingleCompress) {
+                         selectionActions.push({ id: 'selection-extract', icon: 'fas fa-file-export', label: `Extract` });
+                    }
+                    
+                    selectionActions.push({ id: 'selection-delete', icon: 'fas fa-trash', label: `Hapus (${count})` });
                 }
 
                 // Render Menu Items
@@ -246,7 +264,7 @@
                     itemDiv.addEventListener('click', (e) => {
                         e.preventDefault();
                         handleSelectionAction(action.id, count);
-                        if(action.id !== 'selection-all') { // Pengecekan tambahan di sini untuk jaga-jaga
+                        if(action.id !== 'selection-all') {
                            toggleMenu(false);
                         }
                     });
@@ -262,21 +280,45 @@
                     }
                     updateSelectionMenu(); 
                 } else {
-                    if (isSelecting) {
+                    // Jika tidak ada item yang dipilih, tapi clipboard terisi, kita masih di mode "aksi"
+                    if (isClipboardPopulated) {
+                        updateSelectionMenu();
+                    } else if (isSelecting) {
                         toggleSelectionMode(false);
                     }
                 }
             }
 
+            // FUNGSI INTI PERBAIKAN: Mengontrol Tombol + dan Globe
             function toggleSelectionMode(enable) {
                 isSelecting = enable;
                 
-                menuToggle.querySelector('i').className = 'fas fa-plus'; 
-                
                 if (enable) {
+                    // 1. NONAKTIFKAN TOMBOL PLUS saat seleksi aktif
+                    menuToggle.style.pointerEvents = 'none'; 
+                    menuToggle.style.opacity = '0.5'; 
+                    menuToggle.querySelector('i').className = 'fas fa-check'; 
+
+                    // 2. AKTIFKAN TOMBOL BROWSER sebagai Menu Hamburger
                     browserLink.querySelector('i').className = 'fas fa-bars'; 
+                    
                 } else {
+                    // 1. AKTIFKAN KEMBALI TOMBOL PLUS (jika clipboard kosong)
+                    if (!isClipboardPopulated) {
+                         menuToggle.style.pointerEvents = 'auto'; 
+                         menuToggle.style.opacity = '1'; 
+                         menuToggle.querySelector('i').className = 'fas fa-plus'; 
+                    } else {
+                        // Jika clipboard terisi, biarkan tombol + nonaktif dan ikon check/done
+                        menuToggle.style.pointerEvents = 'none'; 
+                        menuToggle.style.opacity = '0.5'; 
+                        menuToggle.querySelector('i').className = 'fas fa-check';
+                    }
+                    
+                    // 2. KEMBALI ke ikon Globe
                     browserLink.querySelector('i').className = 'fas fa-globe';
+                    
+                    // Hapus seleksi visual (hanya jika keluar mode)
                     document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
                 }
             }
@@ -359,7 +401,10 @@
             // --- 4. KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
             document.addEventListener('click', function(e) {
                 if (isSelecting && !e.target.closest('.file-item') && !e.target.closest('#menu-overlay') && !e.target.closest('#menu-toggle') && !e.target.closest('#browser-link')) {
-                    toggleSelectionMode(false);
+                    // Keluar mode seleksi hanya jika clipboard kosong
+                    if (!isClipboardPopulated) {
+                        toggleSelectionMode(false);
+                    }
                 }
             });
 
@@ -400,10 +445,12 @@
             const toggleMenu = (show) => {
                 if (show) {
                     menuOverlay.style.display = 'flex';
-                    if (isSelecting) {
+                    // Jika mode seleksi aktif ATAU clipboard terisi, tampilkan menu aksi
+                    if (isSelecting || isClipboardPopulated) { 
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Seleksi';
                         updateSelectionMenu(); 
                     } else {
+                        // Tampilkan menu cepat default
                         menuModal.querySelector('h3').textContent = 'Menu Aksi Cepat';
                         menuModal.querySelector('.menu-list').innerHTML = `
                              <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
@@ -424,16 +471,19 @@
                 }
             };
 
-            // Tombol PLUS (Menu Cepat)
+            // Tombol PLUS (Menu Cepat) - HANYA BERFUNGSI SAAT TIDAK DALAM MODE SELEKSI
             menuToggle.addEventListener('click', function(e) {
                 e.preventDefault();
-                toggleMenu(true);
+                // PointerEvents sudah mengendalikan ini, tapi cek tambahan tidak ada salahnya
+                if (!isSelecting && !isClipboardPopulated) { 
+                    toggleMenu(true);
+                }
             });
             
-            // Tombol BROWSER/HAMBURGER (Menu Aksi Seleksi)
+            // Tombol BROWSER/HAMBURGER (Menu Aksi Seleksi/Paste)
             browserLink.addEventListener('click', function(e) {
                 e.preventDefault();
-                if (isSelecting) {
+                if (isSelecting || isClipboardPopulated) {
                     toggleMenu(true);
                 } 
             });
@@ -449,6 +499,8 @@
                 }
             });
 
+            // Inisialisasi tampilan tombol saat DOM pertama kali dimuat (jika clipboard sudah terisi dari sesi sebelumnya)
+            toggleSelectionMode(isSelecting); 
         });
     </script>
 
