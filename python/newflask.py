@@ -1,289 +1,378 @@
-#!/usr/bin/env python3  
-# newflask.py - versi diperkuat: DNS-check + auto-retry untuk trycloudflare  
-import os, sys, math, time, re, shutil, logging, subprocess, signal, socket, json  
-from threading import Thread  
-from werkzeug.serving import run_simple  
-from flask import Flask, render_template, send_file, request  
+#!/usr/bin/env python3
+# newflask.py - versi diperkuat: DNS-check + auto-retry untuk trycloudflare
+import os, sys, math, time, re, shutil, logging, subprocess, signal, socket, json
+from threading import Thread
+from werkzeug.serving import run_simple
+from flask import Flask, render_template, send_file, request
 
-# --- KONFIGURASI ---  
-ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")  
-PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))  
-CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")  
-CLOUDFLARE_TIMEOUT = int(os.environ.get("NEWFLARE_TIMEOUT", "60"))  # waktu tunggu awal (detik)  
-DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))  # waktu tunggu saat menunggu DNS propagate  
-CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))  # max restart attempts  
-RETRY_DELAY = float(os.environ.get("TUNNEL_RETRY_DELAY", "2"))  # delay antar read stdout  
-logging.getLogger("werkzeug").setLevel(logging.ERROR)  
+# --- DUMMY HTML TEMPLATE (Ditambahkan agar kode siap pakai) ---
+# Jika template main.html tidak ada di folder 'html', ini akan ditulis.
+DUMMY_MAIN_HTML = """
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>File Manager (DUMMY)</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
+        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
+        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+        .disk-info div { margin: 5px 0; padding: 5px; background: #eee; border-radius: 4px; }
+        .file-list { list-style: none; padding: 0; }
+        .file-list li { padding: 8px 0; border-bottom: 1px dotted #ddd; display: flex; align-items: center; }
+        .file-list li:last-child { border-bottom: none; }
+        .file-list i { margin-right: 10px; width: 20px; text-align: center; }
+        .file-list a { text-decoration: none; color: #007bff; flex-grow: 1; }
+        .file-size { margin-left: auto; font-size: 0.9em; color: #666; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1><i class="fas fa-folder-open"></i> File Manager</h1>
+        <h2>Current Path: <a href="/?path={{ os_path.dirname(path) }}">{{ os_path.dirname(path) }}</a> / <b>{{ os_path.basename(path) }}</b></h2>
 
-try:  
-    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))  
-except NameError:  
-    BASE_DIR = os.path.abspath(os.getcwd())  
+        <div class="disk-info">
+            <h3>Disk Usage</h3>
+            <div><i class="fas fa-hdd"></i> Colab Storage: {{ format_size(colab_used) }} / {{ format_size(colab_total) }} ({{ "%.2f"|format(colab_percent) }}%)</div>
+            {% if drive_total > 0 %}
+            <div><i class="fas fa-cloud"></i> Google Drive: {{ format_size(drive_used) }} / {{ format_size(drive_total) }} ({{ "%.2f"|format(drive_percent) }}%)</div>
+            {% endif %}
+        </div>
 
-TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")  
-STATIC_FOLDER_ROOT = BASE_DIR  
-os.makedirs(TEMPLATE_FOLDER, exist_ok=True)  
+        <h3>File Listing</h3>
+        <ul class="file-list">
+            {% if path != root_path %}
+            <li>
+                <i class="fas fa-level-up-alt"></i>
+                <a href="/?path={{ os_path.dirname(path) }}">.. (Go Up)</a>
+            </li>
+            {% endif %}
+            {% for file in files %}
+            <li>
+                <i class="fas {{ file.icon_class }}"></i>
+                {% if file.is_dir %}
+                    <a href="/?path={{ file.full_path }}">{{ file.name }}</a>
+                {% else %}
+                    <a href="/file?path={{ file.full_path }}">{{ file.name }}</a>
+                {% endif %}
+                <span class="file-size">{{ file.size }}</span>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+</body>
+</html>
+"""
 
-# --- UTILITY FUNCTIONS ---  
-def format_size(size_bytes):  
-    if size_bytes is None or size_bytes < 0: return "0 B"  
-    if size_bytes == 0: return "0 B"  
-    size_name = ("B","KB","MB","GB","TB")  
-    i = int(math.floor(math.log(size_bytes,1024)))  
-    p = math.pow(1024,i)  
-    s = round(size_bytes/p,2)  
-    return f"{s} {size_name[i]}"  
+# --- KONFIGURASI ---
+ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
+PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
+CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
+CLOUDFLARE_TIMEOUT = int(os.environ.get("CLOUDFLARE_TIMEOUT", "60"))  # waktu tunggu awal (detik)
+DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))  # waktu tunggu saat menunggu DNS propagate
+CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))  # max restart attempts
+RETRY_DELAY = float(os.environ.get("TUNNEL_RETRY_DELAY", "2"))  # delay antar read stdout
+logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
-def get_disk_usage(path):  
-    try:  
-        if not os.path.exists(path): return 0,0,0.0  
-        total, used, free = shutil.disk_usage(path)  
-        percent = (used/total)*100 if total>0 else 0.0  
-        return total, used, percent  
-    except: return 0,0,0.0  
+try:
+    BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+except NameError:
+    BASE_DIR = os.path.abspath(os.getcwd())
 
-def _is_within_root(path):  
-    try:  
-        return os.path.commonpath([os.path.realpath(ROOT_PATH), os.path.realpath(path)]) == os.path.realpath(ROOT_PATH)  
-    except: return False  
+TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
+STATIC_FOLDER_ROOT = BASE_DIR
+os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
-def get_directory_size(start_path='.'):  
-    total_size = 0  
-    try:  
-        for dirpath, _, filenames in os.walk(start_path):  
-            for fname in filenames:  
-                fp = os.path.join(dirpath, fname)  
-                try:  
-                    if not os.path.islink(fp): total_size += os.path.getsize(fp)  
-                except: continue  
-    except: return -1  
-    return total_size  
+# 🛠️ PERBAIKAN: Tulis DUMMY_MAIN_HTML jika template tidak ada
+TPL_PATH = os.path.join(TEMPLATE_FOLDER, "main.html")
+if not os.path.exists(TPL_PATH):
+    print(f"⚠️ Template main.html tidak ditemukan. Membuat template dummy di: {TPL_PATH}")
+    with open(TPL_PATH, "w") as f:
+        f.write(DUMMY_MAIN_HTML)
 
-def get_file_icon_class(filename):  
-    ext = os.path.splitext(filename)[1].lower()  
-    if ext in ['.mp4','.mkv','.avi','.mov','.wmv']: return "fa-file-video"  
-    if ext in ['.mp3','.wav','.flac','.ogg']: return "fa-file-audio"  
-    if ext in ['.jpg','.jpeg','.png','.gif','.bmp','.svg','.webp']: return "fa-file-image"  
-    if ext in ['.exe','.msi','.deb','.rpm','.apk']: return "fa-box"  
-    if ext in ['.py','.java','.c','.cpp','.html','.css','.js','.json','.xml','.sh']: return "fa-file-code"  
-    if ext in ['.zip','.rar','.7z','.tar','.gz','.tgz']: return "fa-file-archive"  
-    if ext in ['.pdf']: return "fa-file-pdf"  
-    if ext in ['.doc','.docx']: return "fa-file-word"  
-    if ext in ['.xls','.xlsx','.csv']: return "fa-file-excel"  
-    if ext in ['.ppt','.pptx']: return "fa-file-powerpoint"  
-    if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"  
-    return "fa-file"  
 
-# --- UPDATED list_dir: folders dulu, baru file, alfabet case-insensitive ---  
-def list_dir(path):  
-    files=[]  
-    try:  
-        if not os.path.exists(path): return files  
-        for name in sorted(os.listdir(path), key=lambda n: (not os.path.isdir(os.path.join(path, n)), n.lower())):  
-            full_path = os.path.join(path, name)  
-            if os.path.islink(full_path) and not _is_within_root(full_path): continue  
-            is_dir = os.path.isdir(full_path)  
-            size_bytes, size_formatted, icon_class = 0,"","fa-file"  
-            if is_dir:  
-                size_bytes = get_directory_size(full_path)  
-                size_formatted = format_size(size_bytes) if size_bytes>=0 else "Error"  
-                icon_class = "fa-folder"  
-            else:  
-                try:  
-                    stat = os.stat(full_path)  
-                    size_bytes = stat.st_size  
-                    size_formatted = format_size(size_bytes)  
-                    icon_class = get_file_icon_class(name)  
-                except: size_formatted="Error"  
-            files.append({  
-                "name": name, "is_dir": is_dir, "full_path": full_path,  
-                "size": size_formatted, "size_bytes": size_bytes, "icon_class": icon_class  
-            })  
-    except Exception as e:  
-        files.append({"name":f"ERROR: {e}", "is_dir":False,"full_path":"","size":"","icon_class":"fa-exclamation-triangle"})  
-    return files  
+# --- UTILITY FUNCTIONS ---
+def format_size(size_bytes):
+    if size_bytes is None or size_bytes < 0: return "0 B"
+    if size_bytes == 0: return "0 B"
+    size_name = ("B","KB","MB","GB","TB")
+    i = int(math.floor(math.log(size_bytes,1024)))
+    p = math.pow(1024,i)
+    s = round(size_bytes/p,2)
+    return f"{s} {size_name[i]}"
 
-# --- FLASK APP ---  
-app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")  
-app.jinja_env.globals.update(format_size=format_size, os_path=os.path)  
+def get_disk_usage(path):
+    try:
+        if not os.path.exists(path): return 0,0,0.0
+        total, used, free = shutil.disk_usage(path)
+        percent = (used/total)*100 if total>0 else 0.0
+        return total, used, percent
+    except: return 0,0,0.0
 
-@app.route("/")  
-def index():  
-    req_path = request.args.get("path", ROOT_PATH)  
-    try: abs_path=os.path.abspath(req_path)  
-    except: abs_path=ROOT_PATH  
-    if not _is_within_root(abs_path) or not os.path.exists(abs_path): abs_path=ROOT_PATH  
-    colab_total, colab_used, colab_percent = get_disk_usage(ROOT_PATH)  
-    drive_mount_path = os.path.join(ROOT_PATH,"drive")  
-    drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)  
-    files = list_dir(abs_path)  
-    tpl = "main.html"  
-    if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):  
-        items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)  
-        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>"  
-    return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,  
-        colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,  
-        drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,  
-        drive_mount_path=drive_mount_path)  
+def _is_within_root(path):
+    try:
+        return os.path.commonpath([os.path.realpath(ROOT_PATH), os.path.realpath(path)]) == os.path.realpath(ROOT_PATH)
+    except: return False
 
-@app.route("/file")  
-def open_file():  
-    p = request.args.get("path","")  
-    if not p: return "Path missing",400  
-    try: abs_path=os.path.abspath(p)  
-    except: return "Invalid path",400  
-    if not _is_within_root(abs_path) or not os.path.exists(abs_path) or not os.path.isfile(abs_path):  
-        return "File cannot be opened.",404  
-    text_exts={'.txt','.py','.csv','.md','.log','.json','.yml','.yaml','.html','.css','.js'}  
-    ext=os.path.splitext(abs_path)[1].lower()  
-    if ext in text_exts:  
-        try:  
-            with open(abs_path,"r",encoding="utf-8",errors="ignore") as fh: content=fh.read()  
-            return f"<pre>{content.replace('</','&lt;/')}</pre>"  
-        except Exception as e: return f"Failed to read file: {e}",500  
-    try: return send_file(abs_path, as_attachment=True)  
-    except Exception as e: return f"Failed to send file: {e}",500  
+def get_directory_size(start_path='.'):
+    total_size = 0
+    try:
+        for dirpath, _, filenames in os.walk(start_path):
+            for fname in filenames:
+                fp = os.path.join(dirpath, fname)
+                try:
+                    if not os.path.islink(fp): total_size += os.path.getsize(fp)
+                except: continue
+    except: return -1
+    return total_size
 
-# --- DNS CHECK HELPERS (DOH) ---  
-def doh_resolves(hostname, timeout=5):  
-    import requests  
-    urls = [  
-        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=A",  
-        f"https://dns.google/resolve?name={hostname}&type=A",  
-        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=AAAA",  
-        f"https://dns.google/resolve?name={hostname}&type=AAAA"  
-    ]  
-    headers = {"Accept":"application/dns-json"}  
-    for u in urls:  
-        try:  
-            r = requests.get(u, headers=headers, timeout=timeout)  
-            if r.status_code == 200:  
-                try:  
-                    j = r.json()  
-                    if j.get("Answer") or j.get("answer") or j.get("Status") == 0 and j.get("Answer"):  
-                        return True  
-                except Exception: continue  
-        except Exception: continue  
-    try:  
-        socket.getaddrinfo(hostname, None)  
-        return True  
-    except Exception:  
-        return False  
+def get_file_icon_class(filename):
+    ext = os.path.splitext(filename)[1].lower()
+    if ext in ['.mp4','.mkv','.avi','.mov','.wmv']: return "fa-file-video"
+    if ext in ['.mp3','.wav','.flac','.ogg']: return "fa-file-audio"
+    if ext in ['.jpg','.jpeg','.png','.gif','.bmp','.svg','.webp']: return "fa-file-image"
+    if ext in ['.exe','.msi','.deb','.rpm','.apk']: return "fa-box"
+    if ext in ['.py','.java','.c','.cpp','.html','.css','.js','.json','.xml','.sh']: return "fa-file-code"
+    if ext in ['.zip','.rar','.7z','.tar','.gz','.tgz']: return "fa-file-archive"
+    if ext in ['.pdf']: return "fa-file-pdf"
+    if ext in ['.doc','.docx']: return "fa-file-word"
+    if ext in ['.xls','.xlsx','.csv']: return "fa-file-excel"
+    if ext in ['.ppt','.pptx']: return "fa-file-powerpoint"
+    if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"
+    return "fa-file"
 
-# --- CLOUDFLARE ENSURE + RUN + RETRY ---  
-def ensure_cloudflared():  
-    if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True  
-    try:  
-        print("Mengunduh cloudflared...")  
-        rc = os.system(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}")  
-        if rc!=0:  
-            os.system(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}")  
-        os.chmod(CLOUDFLARED_BIN,0o755)  
-        return True  
-    except Exception as e:  
-        print("Gagal unduh cloudflared:", e)  
-        return False  
+# --- UPDATED list_dir: folders dulu, baru file, alfabet case-insensitive ---
+def list_dir(path):
+    files=[]
+    try:
+        if not os.path.exists(path): return files
+        for name in sorted(os.listdir(path), key=lambda n: (not os.path.isdir(os.path.join(path, n)), n.lower())):
+            full_path = os.path.join(path, name)
+            if os.path.islink(full_path) and not _is_within_root(full_path): continue
+            is_dir = os.path.isdir(full_path)
+            size_bytes, size_formatted, icon_class = 0,"","fa-file"
+            if is_dir:
+                size_bytes = get_directory_size(full_path)
+                size_formatted = format_size(size_bytes) if size_bytes>=0 else "Error"
+                icon_class = "fa-folder"
+            else:
+                try:
+                    stat = os.stat(full_path)
+                    size_bytes = stat.st_size
+                    size_formatted = format_size(size_bytes)
+                    icon_class = get_file_icon_class(name)
+                except: size_formatted="Error"
+            files.append({
+                "name": name, "is_dir": is_dir, "full_path": full_path,
+                "size": size_formatted, "size_bytes": size_bytes, "icon_class": icon_class
+            })
+    except Exception as e:
+        files.append({"name":f"ERROR: {e}", "is_dir":False,"full_path":"","size":"","icon_class":"fa-exclamation-triangle"})
+    return files
 
-def start_cloudflared(proc_args):  
-    try:  
-        proc = subprocess.Popen(proc_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, preexec_fn=os.setsid)  
-        return proc  
-    except Exception as e:  
-        print("Gagal start cloudflared:", e)  
-        return None  
+# --- FLASK APP ---
+app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")
+app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
 
-def stop_proc(proc):  
-    try:  
-        if proc and proc.poll() is None:  
-            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)  
-            time.sleep(0.3)  
-            if proc.poll() is None:  
-                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)  
-    except Exception:  
-        pass  
+@app.route("/")
+def index():
+    req_path = request.args.get("path", ROOT_PATH)
+    try: abs_path=os.path.abspath(req_path)
+    except: abs_path=ROOT_PATH
+    if not _is_within_root(abs_path) or not os.path.exists(abs_path): abs_path=ROOT_PATH
+    colab_total, colab_used, colab_percent = get_disk_usage(ROOT_PATH)
+    # 🛠️ PERBAIKAN: Cek apakah drive di-mount di ROOT_PATH/drive, bukan hardcode.
+    # Namun, karena kode Anda menggunakan ROOT_PATH, kita ikuti asumsi tersebut, tetapi
+    # cek /content/drive adalah cara umum di Colab. Kita gunakan cara umum Colab.
+    drive_mount_path = "/content/drive"
+    drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)
+    files = list_dir(abs_path)
+    tpl = "main.html"
+    if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):
+        items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
+        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>"
+    return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,
+        colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
+        drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
+        drive_mount_path=drive_mount_path)
 
-def run_flask_and_tunnel():  
-    def _run():  
-        try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)  
-        except Exception as e: print("Flask run error:", e)  
-    t = Thread(target=_run)  
-    t.start()  
+@app.route("/file")
+def open_file():
+    p = request.args.get("path","")
+    if not p: return "Path missing",400
+    try: abs_path=os.path.abspath(p)
+    except: return "Invalid path",400
+    if not _is_within_root(abs_path) or not os.path.exists(abs_path) or not os.path.isfile(abs_path):
+        return "File cannot be opened.",404
+    text_exts={'.txt','.py','.csv','.md','.log','.json','.yml','.yaml','.html','.css','.js'}
+    ext=os.path.splitext(abs_path)[1].lower()
+    if ext in text_exts:
+        try:
+            with open(abs_path,"r",encoding="utf-8",errors="ignore") as fh: content=fh.read()
+            return f"<pre>{content.replace('</','&lt;/')}</pre>"
+        except Exception as e: return f"Failed to read file: {e}",500
+    try: return send_file(abs_path, as_attachment=True)
+    except Exception as e: return f"Failed to send file: {e}",500
 
-    if not ensure_cloudflared():  
-        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return  
+# --- DNS CHECK HELPERS (DOH) ---
+def doh_resolves(hostname, timeout=5):
+    import requests
+    urls = [
+        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=A",
+        f"https://dns.google/resolve?name={hostname}&type=A",
+        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=AAAA",
+        f"https://dns.google/resolve?name={hostname}&type=AAAA"
+    ]
+    headers = {"Accept":"application/dns-json"}
+    for u in urls:
+        try:
+            r = requests.get(u, headers=headers, timeout=timeout)
+            if r.status_code == 200:
+                try:
+                    j = r.json()
+                    # Status 0 berarti DNS query sukses, dan Answer array tidak kosong berarti ada record A/AAAA
+                    if j.get("Status") == 0 and j.get("Answer"):
+                        return True
+                except Exception: continue
+        except Exception: continue
+    try:
+        # Fallback ke resolver sistem/socket default
+        socket.getaddrinfo(hostname, None)
+        return True
+    except Exception:
+        return False
 
-    proc = None  
-    restarts = 0  
-    public_url = None  
+# --- CLOUDFLARE ENSURE + RUN + RETRY ---
+def ensure_cloudflared():
+    if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
+    try:
+        print("Mengunduh cloudflared...")
+        # 🛠️ PERBAIKAN: Gunakan os.system/subprocess.run daripada subprocess.Popen untuk unduh
+        rc = subprocess.run(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}", shell=True).returncode
+        if rc!=0:
+             rc = subprocess.run(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}", shell=True).returncode
+        if rc==0:
+            os.chmod(CLOUDFLARED_BIN,0o755)
+            return True
+        else:
+            print("Gagal unduh cloudflared setelah mencoba wget dan curl.")
+            return False
+    except Exception as e:
+        print("Gagal unduh cloudflared:", e)
+        return False
 
-    while restarts <= CLOUDFLARED_RESTARTS:  
-        restarts += 1  
-        print(f"[TUNNEL] Mencoba membuat terowongan (attempt {restarts}/{CLOUDFLARED_RESTARTS})...")  
-        args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]  
-        proc = start_cloudflared(args)  
-        if not proc:  
-            print("[TUNNEL] Gagal start cloudflared, retrying...")  
-            time.sleep(2)  
-            continue  
+def start_cloudflared(proc_args):
+    try:
+        # Menggunakan os.setsid untuk membuat proses baru agar mudah di-kill grupnya
+        proc = subprocess.Popen(proc_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, preexec_fn=os.setsid)
+        return proc
+    except Exception as e:
+        print("Gagal start cloudflared:", e)
+        return None
 
-        start = time.time()  
-        public_url = None  
-        while time.time() - start < CLOUDFLARE_TIMEOUT:  
-            try: line = proc.stdout.readline()  
-            except Exception: line = ""  
-            if not line:  
-                time.sleep(RETRY_DELAY)  
-                continue  
-            line_str = line.strip()  
-            print(line_str)  
-            m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line_str)  
-            if m:  
-                public_url = m.group(1)  
-                print(f"[TUNNEL] URL ditemukan di stdout: {public_url}")  
-                break  
+def stop_proc(proc):
+    try:
+        if proc and proc.poll() is None:
+            # Kirim SIGTERM ke seluruh grup proses
+            os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
+            time.sleep(0.3)
+            # Jika masih hidup, kirim SIGKILL
+            if proc.poll() is None:
+                os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
+    except Exception:
+        pass
 
-        if not public_url:  
-            print("[TUNNEL] Tidak dapat menemukan URL di log dalam batas waktu. Akan restart cloudflared dan coba lagi.")  
-            stop_proc(proc)  
-            time.sleep(2)  
-            continue  
+def run_flask_and_tunnel():
+    def _run():
+        try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
+        except Exception as e: print("Flask run error:", e)
+    t = Thread(target=_run)
+    t.start()
 
-        hostname = re.sub(r'^https?://', '', public_url).split('/')[0]  
-        print(f"[DNS] Menunggu hostname {hostname} ter-resolve (timeout {DNS_CHECK_TIMEOUT}s)...")  
-        dns_start = time.time()  
-        resolved = False  
-        while time.time() - dns_start < DNS_CHECK_TIMEOUT:  
-            if doh_resolves(hostname, timeout=3):  
-                resolved = True  
-                break  
-            print("[DNS] Belum ter-resolve, menunggu 1s lalu retry...")  
-            time.sleep(1)  
+    if not ensure_cloudflared():
+        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
 
-        if resolved:  
-            print("\n" + "="*50)  
-            print("URL PUBLIK ANDA (dan sudah resolved):")  
-            print(f"  {public_url}")  
-            print("="*50 + "\n")  
-            return  
-        else:  
-            print("[DNS] Hostname masih belum ter-resolve setelah timeout. Akan restart cloudflared dan coba lagi.")  
-            stop_proc(proc)  
-            time.sleep(2)  
-            continue  
+    proc = None
+    restarts = 0
+    public_url = None
 
-    if proc and proc.poll() is None:  
-        print("[TUNNEL] Semua percobaan restart habis, tapi proses cloudflared masih berjalan — periksa log di atas.")  
-    else:  
-        print("[TUNNEL] Semua percobaan gagal. Tidak ada tunnel aktif.")  
+    while restarts < CLOUDFLARED_RESTARTS:
+        restarts += 1
+        print(f"[TUNNEL] Mencoba membuat terowongan (attempt {restarts}/{CLOUDFLARED_RESTARTS})...")
+        args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]
+        proc = start_cloudflared(args)
+        if not proc:
+            print("[TUNNEL] Gagal start cloudflared, retrying...")
+            time.sleep(2)
+            continue
 
-# --- MAIN ---  
-if __name__=="__main__":  
-    print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")  
-    os.makedirs(ROOT_PATH,exist_ok=True)  
-    try:  
-        run_flask_and_tunnel()  
-        print("Menjaga program tetap hidup (Ctrl+C untuk keluar)...")  
-        while True:  
-            time.sleep(1)  
-    except KeyboardInterrupt:  
+        start = time.time()
+        public_url = None
+        while time.time() - start < CLOUDFLARE_TIMEOUT:
+            try: line = proc.stdout.readline()
+            except Exception: line = ""
+            if not line:
+                time.sleep(RETRY_DELAY)
+                if proc.poll() is not None:
+                     print("[TUNNEL] Proses cloudflared mati tak terduga.")
+                     break
+                continue
+            line_str = line.strip()
+            print(line_str)
+            m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line_str)
+            if m:
+                public_url = m.group(1)
+                print(f"[TUNNEL] URL ditemukan di stdout: {public_url}")
+                break
+
+        if not public_url or proc.poll() is not None:
+            print("[TUNNEL] Tidak dapat menemukan URL atau proses mati. Akan restart cloudflared dan coba lagi.")
+            stop_proc(proc)
+            time.sleep(2)
+            continue
+
+        hostname = re.sub(r'^https?://', '', public_url).split('/')[0]
+        print(f"[DNS] Menunggu hostname {hostname} ter-resolve (timeout {DNS_CHECK_TIMEOUT}s)...")
+        dns_start = time.time()
+        resolved = False
+        while time.time() - dns_start < DNS_CHECK_TIMEOUT:
+            if doh_resolves(hostname, timeout=3):
+                resolved = True
+                break
+            # 🛠️ PERBAIKAN: Cek apakah proses cloudflared masih hidup
+            if proc.poll() is not None:
+                print("[DNS] Cloudflared mati saat menunggu DNS. Membatalkan DNS check.")
+                break
+            print("[DNS] Belum ter-resolve, menunggu 1s lalu retry...")
+            time.sleep(1)
+
+        if resolved:
+            print("\n" + "="*50)
+            print("URL PUBLIK ANDA (dan sudah resolved):")
+            print(f"  {public_url}")
+            print("="*50 + "\n")
+            return
+        else:
+            print("[DNS] Hostname masih belum ter-resolve setelah timeout atau proses mati. Akan restart cloudflared dan coba lagi.")
+            stop_proc(proc)
+            time.sleep(2)
+            continue
+
+    if proc and proc.poll() is None:
+        print("[TUNNEL] Semua percobaan restart habis, tapi proses cloudflared masih berjalan — periksa log di atas.")
+    else:
+        print("[TUNNEL] Semua percobaan gagal. Tidak ada tunnel aktif.")
+
+# --- MAIN ---
+if __name__=="__main__":
+    print(f"Starting newflask.py -> ROOT_PATH={ROOT_PATH} PORT={PORT}")
+    os.makedirs(ROOT_PATH,exist_ok=True)
+    try:
+        run_flask_and_tunnel()
+        print("Menjaga program tetap hidup (Ctrl+C untuk keluar)...")
+        while True:
+            time.sleep(1)
+    except KeyboardInterrupt:
         print("Terminated."); sys.exit(0)
