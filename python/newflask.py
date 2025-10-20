@@ -181,6 +181,10 @@ def run_flask_and_tunnel():
         except Exception as e: print("Flask run error:", e)
     Thread(target=_run, daemon=True).start()
     
+    # --- PERBAIKAN: JEDA 5 DETIK AGAR FLASK SEMPAT INISIALISASI ---
+    print("⏳ Menunggu 5 detik agar server Flask siap...")
+    time.sleep(5) 
+    
     if not ensure_cloudflared():
         print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
         
@@ -191,7 +195,6 @@ def run_flask_and_tunnel():
         log_file_path = "/tmp/cloudflared_tunnel.log"
         
         # PENTING: Jalankan cloudflared di background secara mandiri menggunakan 'nohup' dan '&'
-        # Output diarahkan ke file log (ditekan dari konsol)
         cmd = f"nohup {CLOUDFLARED_BIN} tunnel --url http://127.0.0.1:{PORT} --no-autoupdate > {log_file_path} 2>&1 &"
         
         # Menekan output dari command shell itu sendiri
