@@ -49,14 +49,11 @@ a { text-decoration: none; color: inherit; }
     align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
-    /* Tambah transisi box-shadow */
     transition: background-color 0.2s, border 0.2s, box-shadow 0.2s; 
     cursor: default; 
     position: relative;
-    /* LIST VIEW: Border default 1px transparent */
     border: 1px solid transparent; 
-    /* Tambah box-shadow transparan di kondisi normal List View */
-    box-shadow: 0 0 5px rgba(0, 0, 0, 0);
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0); 
 }
 
 /* Hover normal hanya berlaku jika item belum terseleksi */
@@ -101,8 +98,8 @@ a { text-decoration: none; color: inherit; }
 .file-item.selected,
 .file-item.selected:hover { 
     background-color: #e2f0ff; 
-    border: 1px solid #007bff; /* Border tetap 1px */
-    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2); /* Box shadow aktif */
+    border: 1px solid #007bff; 
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2); 
 }
 
 /* --- GRID VIEW STYLES --- */
@@ -122,9 +119,7 @@ a { text-decoration: none; color: inherit; }
     border-radius: 8px;
     overflow: hidden; 
     
-    /* Set default border Grid menjadi 2px agar konsisten dengan border seleksi */
     border: 2px solid #ddd; 
-    /* Tambah box-shadow transparan di kondisi normal Grid View */
     box-shadow: 0 0 5px rgba(0, 0, 0, 0); 
 }
 
@@ -201,41 +196,44 @@ a { text-decoration: none; color: inherit; }
     }
 }
 
----
 
-## 🛠️ Perbaikan Fixed Footer (Navbar)
-
+/* FIXED FOOTER (NAVBAR) */
 .fixed-footer { 
-    position: fixed; bottom: 0; width: 100%; max-width: 800px; 
-    background-color: #212529; color: white; 
-    /* Jaga box-shadow footer agar tetap konsisten */
-    box-shadow: 0 -2px 4px rgba(0,0,0,0.1); z-index: 100; 
-    display: flex; justify-content: space-around; align-items: center; 
+    position: fixed; 
+    bottom: 0; 
+    width: 100%; 
+    max-width: 800px; 
+    
+    /* PERBAIKAN STABILITAS 1: Centering horizontal agar footer terkunci di tengah */
+    left: 50%; 
+    transform: translateX(-50%);
+
+    background-color: #212529; 
+    color: white; 
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.1); 
+    z-index: 100; 
+    display: flex; 
+    /* Ubah justify-content agar item flex memiliki lebar yang sama */
+    justify-content: space-around; /* Tetap pertahankan ini jika Anda suka tampilannya */
+    align-items: center; 
     height: 55px;
 }
 .nav-icon { 
-    display: flex; flex-direction: column; align-items: center; 
-    /* Tambahkan margin atau padding di dalam agar area klik stabil */
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
     padding: 5px; 
     color: #ced4da; 
-    transition: color 0.2s, opacity 0.2s; /* Tambah transisi opacity */
+    transition: color 0.2s;
     cursor: pointer;
-    /* PERBAIKAN: Set box-shadow default ke 'none' agar tidak ada pergeseran saat hover */
-    box-shadow: none;
+    
+    /* PERBAIKAN STABILITAS 2: Pastikan setiap nav-icon mengambil lebar yang sama */
+    flex-grow: 1; /* Memberi ruang yang sama untuk setiap tombol */
+    flex-basis: 0; /* Base width nol, sehingga pertumbuhan berdasarkan sisa ruang */
 }
-.nav-icon i { 
-    font-size: 1.5em; 
-    /* Jaga agar ikon tidak bergeser */
-    line-height: 1; 
-}
+.nav-icon i { font-size: 1.5em; }
 .nav-icon span { display: none; }
-.nav-icon:hover { 
-    color: #ffffff; 
-    /* Set box-shadow eksplisit ke 'none' */
-    box-shadow: none; 
-}
-
----
+.nav-icon:hover { color: #ffffff; }
 
 /* --- MENU OVERLAY STYLES --- */
 #menu-overlay {
