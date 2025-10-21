@@ -5,67 +5,6 @@ from threading import Thread
 from werkzeug.serving import run_simple
 from flask import Flask, render_template, send_file, request
 
-# --- DUMMY HTML TEMPLATE (Ditambahkan agar kode siap pakai) ---
-# Jika template main.html tidak ada di folder 'html', ini akan ditulis.
-DUMMY_MAIN_HTML = """
-<!DOCTYPE html>
-<html>
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-    <title>File Manager (DUMMY)</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <style>
-        body { font-family: sans-serif; margin: 20px; background-color: #f4f4f4; color: #333; }
-        .container { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 0 10px rgba(0,0,0,0.1); }
-        h1, h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-        .disk-info div { margin: 5px 0; padding: 5px; background: #eee; border-radius: 4px; }
-        .file-list { list-style: none; padding: 0; }
-        .file-list li { padding: 8px 0; border-bottom: 1px dotted #ddd; display: flex; align-items: center; }
-        .file-list li:last-child { border-bottom: none; }
-        .file-list i { margin-right: 10px; width: 20px; text-align: center; }
-        .file-list a { text-decoration: none; color: #007bff; flex-grow: 1; }
-        .file-size { margin-left: auto; font-size: 0.9em; color: #666; }
-    </style>
-</head>
-<body>
-    <div class="container">
-        <h1><i class="fas fa-folder-open"></i> File Manager</h1>
-        <h2>Current Path: <a href="/?path={{ os_path.dirname(path) }}">{{ os_path.dirname(path) }}</a> / <b>{{ os_path.basename(path) }}</b></h2>
-
-        <div class="disk-info">
-            <h3>Disk Usage</h3>
-            <div><i class="fas fa-hdd"></i> Colab Storage: {{ format_size(colab_used) }} / {{ format_size(colab_total) }} ({{ "%.2f"|format(colab_percent) }}%)</div>
-            {% if drive_total > 0 %}
-            <div><i class="fas fa-cloud"></i> Google Drive: {{ format_size(drive_used) }} / {{ format_size(drive_total) }} ({{ "%.2f"|format(drive_percent) }}%)</div>
-            {% endif %}
-        </div>
-
-        <h3>File Listing</h3>
-        <ul class="file-list">
-            {% if path != root_path %}
-            <li>
-                <i class="fas fa-level-up-alt"></i>
-                <a href="/?path={{ os_path.dirname(path) }}">.. (Go Up)</a>
-            </li>
-            {% endif %}
-            {% for file in files %}
-            <li>
-                <i class="fas {{ file.icon_class }}"></i>
-                {% if file.is_dir %}
-                    <a href="/?path={{ file.full_path }}">{{ file.name }}</a>
-                {% else %}
-                    <a href="/file?path={{ file.full_path }}">{{ file.name }}</a>
-                {% endif %}
-                <span class="file-size">{{ file.size }}</span>
-            </li>
-            {% endfor %}
-        </ul>
-    </div>
-</body>
-</html>
-"""
-
 # --- KONFIGURASI ---
 ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
 PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
@@ -85,12 +24,8 @@ TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
 STATIC_FOLDER_ROOT = BASE_DIR
 os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
-# 🛠️ PERBAIKAN: Tulis DUMMY_MAIN_HTML jika template tidak ada
+# 🛠️ LOGIKA DUMMY DIHAPUS: Sekarang mengandalkan file main.html yang sudah ada di disk
 TPL_PATH = os.path.join(TEMPLATE_FOLDER, "main.html")
-if not os.path.exists(TPL_PATH):
-    print(f"⚠️ Template main.html tidak ditemukan. Membuat template dummy di: {TPL_PATH}")
-    with open(TPL_PATH, "w") as f:
-        f.write(DUMMY_MAIN_HTML)
 
 
 # --- UTILITY FUNCTIONS ---
@@ -183,16 +118,18 @@ def index():
     except: abs_path=ROOT_PATH
     if not _is_within_root(abs_path) or not os.path.exists(abs_path): abs_path=ROOT_PATH
     colab_total, colab_used, colab_percent = get_disk_usage(ROOT_PATH)
-    # 🛠️ PERBAIKAN: Cek apakah drive di-mount di ROOT_PATH/drive, bukan hardcode.
-    # Namun, karena kode Anda menggunakan ROOT_PATH, kita ikuti asumsi tersebut, tetapi
-    # cek /content/drive adalah cara umum di Colab. Kita gunakan cara umum Colab.
+    # Cek /content/drive adalah cara umum di Colab. Kita gunakan cara umum Colab.
     drive_mount_path = "/content/drive"
     drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)
     files = list_dir(abs_path)
     tpl = "main.html"
+    
+    # LOGIKA FALLBACK SEMENTARA (HTML MENTAH) DITINGGALKAN JIKA main.html TIDAK ADA
     if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):
         items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
-        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>"
+        # Nama tab akan kosong/default browser jika menggunakan HTML mentah ini
+        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>" 
+        
     return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,
         colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
         drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
@@ -249,7 +186,7 @@ def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
         print("Mengunduh cloudflared...")
-        # 🛠️ PERBAIKAN: Gunakan os.system/subprocess.run daripada subprocess.Popen untuk unduh
+        # Gunakan os.system/subprocess.run daripada subprocess.Popen untuk unduh
         rc = subprocess.run(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}", shell=True).returncode
         if rc!=0:
              rc = subprocess.run(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}", shell=True).returncode
@@ -341,7 +278,7 @@ def run_flask_and_tunnel():
             if doh_resolves(hostname, timeout=3):
                 resolved = True
                 break
-            # 🛠️ PERBAIKAN: Cek apakah proses cloudflared masih hidup
+            # Cek apakah proses cloudflared masih hidup
             if proc.poll() is not None:
                 print("[DNS] Cloudflared mati saat menunggu DNS. Membatalkan DNS check.")
                 break
