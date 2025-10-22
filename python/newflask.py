@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-# newflask.py - versi diperkuat: DNS-check + auto-retry untuk trycloudflare
-import os, sys, math, time, re, shutil, logging, subprocess, signal, socket, json
-from threading import Thread
+# newflask.py - versi diperkuat: DNS-check + auto-retry + tunnel restart tanpa restart Flask
+import os, sys, math, time, re, shutil, logging, subprocess, signal, socket, json, threading
+from threading import Thread, Event, Lock
 from werkzeug.serving import run_simple
-from flask import Flask, render_template, send_file, request
+from flask import Flask, render_template, send_file, request, jsonify
 
 # --- KONFIGURASI ---
 ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
@@ -11,7 +11,7 @@ PORT = int(os.environ.get("NEWFLASK_PORT", "8000"))
 CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
 CLOUDFLARE_TIMEOUT = int(os.environ.get("CLOUDFLARE_TIMEOUT", "60"))  # waktu tunggu awal (detik)
 DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))  # waktu tunggu saat menunggu DNS propagate
-CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))  # max restart attempts
+CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))  # max restart attempts per cycle
 RETRY_DELAY = float(os.environ.get("TUNNEL_RETRY_DELAY", "2"))  # delay antar read stdout
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
@@ -24,11 +24,9 @@ TEMPLATE_FOLDER = os.path.join(BASE_DIR, "html")
 STATIC_FOLDER_ROOT = BASE_DIR
 os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
-# 🛠️ LOGIKA DUMMY DIHAPUS: Sekarang mengandalkan file main.html yang sudah ada di disk
 TPL_PATH = os.path.join(TEMPLATE_FOLDER, "main.html")
 
-
-# --- UTILITY FUNCTIONS ---
+# --- UTILITY FUNCTIONS (tetap sama) ---
 def format_size(size_bytes):
     if size_bytes is None or size_bytes < 0: return "0 B"
     if size_bytes == 0: return "0 B"
@@ -78,7 +76,6 @@ def get_file_icon_class(filename):
     if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"
     return "fa-file"
 
-# --- UPDATED list_dir: folders dulu, baru file, alfabet case-insensitive ---
 def list_dir(path):
     files=[]
     try:
@@ -118,18 +115,13 @@ def index():
     except: abs_path=ROOT_PATH
     if not _is_within_root(abs_path) or not os.path.exists(abs_path): abs_path=ROOT_PATH
     colab_total, colab_used, colab_percent = get_disk_usage(ROOT_PATH)
-    # Cek /content/drive adalah cara umum di Colab. Kita gunakan cara umum Colab.
     drive_mount_path = "/content/drive"
     drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)
     files = list_dir(abs_path)
     tpl = "main.html"
-    
-    # LOGIKA FALLBACK SEMENTARA (HTML MENTAH) DITINGGALKAN JIKA main.html TIDAK ADA
     if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):
         items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
-        # Nama tab akan kosong/default browser jika menggunakan HTML mentah ini
-        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>" 
-        
+        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>"
     return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,
         colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
         drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
@@ -169,24 +161,21 @@ def doh_resolves(hostname, timeout=5):
             if r.status_code == 200:
                 try:
                     j = r.json()
-                    # Status 0 berarti DNS query sukses, dan Answer array tidak kosong berarti ada record A/AAAA
                     if j.get("Status") == 0 and j.get("Answer"):
                         return True
                 except Exception: continue
         except Exception: continue
     try:
-        # Fallback ke resolver sistem/socket default
         socket.getaddrinfo(hostname, None)
         return True
     except Exception:
         return False
 
-# --- CLOUDFLARE ENSURE + RUN + RETRY ---
+# --- CLOUDFLARED HELPERS (tetap) ---
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
     try:
         print("Mengunduh cloudflared...")
-        # Gunakan os.system/subprocess.run daripada subprocess.Popen untuk unduh
         rc = subprocess.run(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}", shell=True).returncode
         if rc!=0:
              rc = subprocess.run(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}", shell=True).returncode
@@ -202,7 +191,6 @@ def ensure_cloudflared():
 
 def start_cloudflared(proc_args):
     try:
-        # Menggunakan os.setsid untuk membuat proses baru agar mudah di-kill grupnya
         proc = subprocess.Popen(proc_args, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1, preexec_fn=os.setsid)
         return proc
     except Exception as e:
@@ -212,95 +200,227 @@ def start_cloudflared(proc_args):
 def stop_proc(proc):
     try:
         if proc and proc.poll() is None:
-            # Kirim SIGTERM ke seluruh grup proses
             os.killpg(os.getpgid(proc.pid), signal.SIGTERM)
             time.sleep(0.3)
-            # Jika masih hidup, kirim SIGKILL
             if proc.poll() is None:
                 os.killpg(os.getpgid(proc.pid), signal.SIGKILL)
     except Exception:
         pass
 
+# --- Tunnel Manager: mengelola cloudflared independen dari Flask ---
+class TunnelManager:
+    def __init__(self):
+        self.proc = None
+        self.public_url = None
+        self.hostname = None
+        self._thread = None
+        self._stop_event = Event()
+        self._restart_request = Event()
+        self._lock = Lock()
+        self.restarts = 0
+
+    def start(self):
+        with self._lock:
+            if self._thread and self._thread.is_alive():
+                print("[TUNNEL-MGR] Tunnel manager already running.")
+                return
+            self._stop_event.clear()
+            self._restart_request.clear()
+            self._thread = Thread(target=self._run_loop, daemon=True)
+            self._thread.start()
+            print("[TUNNEL-MGR] Started tunnel manager thread.")
+
+    def stop(self):
+        print("[TUNNEL-MGR] Stop requested.")
+        self._stop_event.set()
+        # kill current proc if any
+        with self._lock:
+            if self.proc:
+                stop_proc(self.proc)
+        if self._thread:
+            self._thread.join(timeout=3)
+
+    def request_restart(self):
+        print("[TUNNEL-MGR] Restart requested.")
+        # ask the loop to restart immediately: sets flag and kills current proc
+        self._restart_request.set()
+        with self._lock:
+            if self.proc:
+                stop_proc(self.proc)
+
+    def _run_loop(self):
+        if not ensure_cloudflared():
+            print("[TUNNEL-MGR] cloudflared unavailable, aborting manager.")
+            return
+
+        cycle_attempts = 0
+        # Continually ensure a live tunnel unless stop requested
+        while not self._stop_event.is_set():
+            cycle_attempts += 1
+            self.restarts = 0
+            success = False
+
+            while self.restarts < CLOUDFLARED_RESTARTS and not self._stop_event.is_set() and not self._restart_request.is_set():
+                self.restarts += 1
+                print(f"[TUNNEL] Starting cloudflared (attempt {self.restarts}/{CLOUDFLARED_RESTARTS})...")
+                args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]
+                proc = start_cloudflared(args)
+                with self._lock:
+                    self.proc = proc
+                    self.public_url = None
+                    self.hostname = None
+
+                if not proc:
+                    print("[TUNNEL] Failed to spawn cloudflared.")
+                    time.sleep(2)
+                    continue
+
+                start_time = time.time()
+                found = False
+                # read stdout to find trycloudflare url
+                try:
+                    while time.time() - start_time < CLOUDFLARE_TIMEOUT and not self._stop_event.is_set() and not self._restart_request.is_set():
+                        line = proc.stdout.readline()
+                        if not line:
+                            time.sleep(RETRY_DELAY)
+                            if proc.poll() is not None:
+                                print("[TUNNEL] cloudflared died unexpectedly while waiting for URL.")
+                                break
+                            continue
+                        line = line.strip()
+                        print("[cloudflared] " + line)
+                        m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line)
+                        if m:
+                            url = m.group(1)
+                            with self._lock:
+                                self.public_url = url
+                                self.hostname = re.sub(r'^https?://', '', url).split('/')[0]
+                            found = True
+                            print(f"[TUNNEL] Found public URL: {url}")
+                            break
+                except Exception as e:
+                    print("[TUNNEL] Exception reading cloudflared stdout:", e)
+
+                # If URL found, wait for DNS resolve
+                if found and self.public_url:
+                    dns_deadline = time.time() + DNS_CHECK_TIMEOUT
+                    resolved = False
+                    while time.time() < dns_deadline and not self._stop_event.is_set() and not self._restart_request.is_set():
+                        if doh_resolves(self.hostname, timeout=3):
+                            resolved = True
+                            break
+                        if proc.poll() is not None:
+                            print("[DNS] cloudflared died while waiting for DNS.")
+                            break
+                        print("[DNS] Not resolved yet, retrying in 1s...")
+                        time.sleep(1)
+
+                    if resolved:
+                        print("\n" + "="*50)
+                        print("URL PUBLIK ANDA (dan sudah resolved):")
+                        print(f"  {self.public_url}")
+                        print("="*50 + "\n")
+                        # Now keep monitoring: if proc dies or restart requested -> break to restart loop
+                        while proc.poll() is None and not self._stop_event.is_set() and not self._restart_request.is_set():
+                            time.sleep(1)
+                        if self._restart_request.is_set():
+                            print("[TUNNEL] Restart requested: will restart cloudflared now.")
+                        elif proc.poll() is not None:
+                            print("[TUNNEL] cloudflared process ended, will attempt restart.")
+                        # cleanup and continue outer restart logic
+                        stop_proc(proc)
+                        with self._lock:
+                            self.proc = None
+                            self.public_url = None
+                            self.hostname = None
+                        # clear restart flag for next cycle
+                        self._restart_request.clear()
+                        continue
+                    else:
+                        print("[TUNNEL] DNS not resolved within timeout or cloudflared died. Restarting cloudflared...")
+                        stop_proc(proc)
+                        with self._lock:
+                            self.proc = None
+                            self.public_url = None
+                            self.hostname = None
+                        # short wait then retry (counted by restarts loop)
+                        time.sleep(2)
+                        continue
+                else:
+                    print("[TUNNEL] Could not obtain URL. Will retry cloudflared.")
+                    try:
+                        stop_proc(proc)
+                    except:
+                        pass
+                    with self._lock:
+                        self.proc = None
+                        self.public_url = None
+                        self.hostname = None
+                    time.sleep(2)
+                    continue
+
+            # if here, either retries exhausted or restart requested or stop requested
+            if self._stop_event.is_set():
+                print("[TUNNEL-MGR] stop_event set, exiting manager.")
+                break
+            if self._restart_request.is_set():
+                # clear flag and loop to start new attempt immediately
+                self._restart_request.clear()
+                print("[TUNNEL-MGR] immediate restart requested; starting new cycle.")
+                continue
+            # exhausted attempts
+            print("[TUNNEL-MGR] exhausted cloudflared restart attempts in this cycle.")
+            # wait a bit before trying a new cycle to avoid busy loop
+            time.sleep(5)
+        # end while
+        print("[TUNNEL-MGR] manager loop terminated.")
+
+    def get_status(self):
+        with self._lock:
+            return {
+                "running": (self.proc is not None and self.proc.poll() is None),
+                "public_url": self.public_url,
+                "hostname": self.hostname,
+                "restarts_in_cycle": self.restarts
+            }
+
+# instantiate manager
+tunnel_manager = TunnelManager()
+
+# --- Flask endpoints to control tunnel (new) ---
+@app.route("/tunnel/status")
+def tunnel_status():
+    st = tunnel_manager.get_status()
+    return jsonify(st)
+
+@app.route("/tunnel/restart", methods=["POST","GET"])
+def tunnel_restart():
+    # trigger restart asynchronously
+    tunnel_manager.request_restart()
+    return jsonify({"status":"restarting_triggered","message":"Tunnel restart requested. Flask tetap berjalan. Periksa /tunnel/status untuk URL baru."})
+
+@app.route("/tunnel/stop", methods=["POST","GET"])
+def tunnel_stop():
+    tunnel_manager.stop()
+    return jsonify({"status":"stopped","message":"Tunnel manager stop requested. cloudflared killed. To start again call /tunnel/start."})
+
+@app.route("/tunnel/start", methods=["POST","GET"])
+def tunnel_start():
+    tunnel_manager.start()
+    return jsonify({"status":"started","message":"Tunnel manager started."})
+
+# --- run function (tetap kompatibel) ---
 def run_flask_and_tunnel():
+    # start flask
     def _run():
         try: run_simple("127.0.0.1", PORT, app, use_reloader=False, threaded=True)
         except Exception as e: print("Flask run error:", e)
-    t = Thread(target=_run)
+    t = Thread(target=_run, daemon=True)
     t.start()
 
-    if not ensure_cloudflared():
-        print("cloudflared tidak tersedia. Tidak bisa membuat terowongan."); return
-
-    proc = None
-    restarts = 0
-    public_url = None
-
-    while restarts < CLOUDFLARED_RESTARTS:
-        restarts += 1
-        print(f"[TUNNEL] Mencoba membuat terowongan (attempt {restarts}/{CLOUDFLARED_RESTARTS})...")
-        args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]
-        proc = start_cloudflared(args)
-        if not proc:
-            print("[TUNNEL] Gagal start cloudflared, retrying...")
-            time.sleep(2)
-            continue
-
-        start = time.time()
-        public_url = None
-        while time.time() - start < CLOUDFLARE_TIMEOUT:
-            try: line = proc.stdout.readline()
-            except Exception: line = ""
-            if not line:
-                time.sleep(RETRY_DELAY)
-                if proc.poll() is not None:
-                     print("[TUNNEL] Proses cloudflared mati tak terduga.")
-                     break
-                continue
-            line_str = line.strip()
-            print(line_str)
-            m = re.search(r'(https://[^\s]+\.trycloudflare\.com)', line_str)
-            if m:
-                public_url = m.group(1)
-                print(f"[TUNNEL] URL ditemukan di stdout: {public_url}")
-                break
-
-        if not public_url or proc.poll() is not None:
-            print("[TUNNEL] Tidak dapat menemukan URL atau proses mati. Akan restart cloudflared dan coba lagi.")
-            stop_proc(proc)
-            time.sleep(2)
-            continue
-
-        hostname = re.sub(r'^https?://', '', public_url).split('/')[0]
-        print(f"[DNS] Menunggu hostname {hostname} ter-resolve (timeout {DNS_CHECK_TIMEOUT}s)...")
-        dns_start = time.time()
-        resolved = False
-        while time.time() - dns_start < DNS_CHECK_TIMEOUT:
-            if doh_resolves(hostname, timeout=3):
-                resolved = True
-                break
-            # Cek apakah proses cloudflared masih hidup
-            if proc.poll() is not None:
-                print("[DNS] Cloudflared mati saat menunggu DNS. Membatalkan DNS check.")
-                break
-            print("[DNS] Belum ter-resolve, menunggu 1s lalu retry...")
-            time.sleep(1)
-
-        if resolved:
-            print("\n" + "="*50)
-            print("URL PUBLIK ANDA (dan sudah resolved):")
-            print(f"  {public_url}")
-            print("="*50 + "\n")
-            return
-        else:
-            print("[DNS] Hostname masih belum ter-resolve setelah timeout atau proses mati. Akan restart cloudflared dan coba lagi.")
-            stop_proc(proc)
-            time.sleep(2)
-            continue
-
-    if proc and proc.poll() is None:
-        print("[TUNNEL] Semua percobaan restart habis, tapi proses cloudflared masih berjalan — periksa log di atas.")
-    else:
-        print("[TUNNEL] Semua percobaan gagal. Tidak ada tunnel aktif.")
+    # start tunnel manager
+    tunnel_manager.start()
+    print("[MAIN] Flask started and Tunnel manager started (separate threads).")
 
 # --- MAIN ---
 if __name__=="__main__":
@@ -312,4 +432,6 @@ if __name__=="__main__":
         while True:
             time.sleep(1)
     except KeyboardInterrupt:
-        print("Terminated."); sys.exit(0)
+        print("Terminated. Stopping tunnel manager...")
+        tunnel_manager.stop()
+        sys.exit(0)
