@@ -1,75 +1,83 @@
 # server.py
+import os, threading, time, json
+from flask import Flask, render_template, request, send_file, jsonify
+from .utils import list_dir, format_size
+from .tunnel import TunnelManager
 
-import os
-from werkzeug.serving import run_simple
-from flask import Flask, render_template, send_file, request
+app = Flask(__name__, template_folder=None)  # we will render simple HTML or static if provided
 
-from . import config # Import konfigurasi
-from . import utils # Import fungsi utility
-
-# --- FLASK APP INITIATION ---
-app = Flask(__name__, 
-            template_folder=config.TEMPLATE_FOLDER, 
-            static_folder=config.STATIC_FOLDER_ROOT, 
-            static_url_path="/static")
-            
-# Daftarkan fungsi format_size dan os.path ke Jinja (template)
-app.jinja_env.globals.update(format_size=utils.format_size, os_path=os.path)
+# Attach manager externally (set by main)
+tunnel_manager = None
+ROOT_PATH = os.environ.get("NEWFLASK_ROOT", "/content")
 
 @app.route("/")
 def index():
-    # Mengambil path dari parameter query, default ke ROOT_PATH
-    req_path = request.args.get("path", config.ROOT_PATH)
-    try: abs_path=os.path.abspath(req_path)
-    except: abs_path=config.ROOT_PATH
-    
-    # Validasi path agar tidak keluar dari ROOT_PATH
-    if not utils._is_within_root(abs_path) or not os.path.exists(abs_path): abs_path=config.ROOT_PATH
-    
-    # Ambil penggunaan disk
-    colab_total, colab_used, colab_percent = utils.get_disk_usage(config.ROOT_PATH)
-    drive_mount_path = "/content/drive"
-    drive_total, drive_used, drive_percent = utils.get_disk_usage(drive_mount_path)
-    
-    # List konten direktori
-    files = utils.list_dir(abs_path)
-    tpl = "main.html"
-    
-    # Fallback jika main.html tidak ada (Sama seperti logika asli)
-    if not os.path.exists(os.path.join(config.TEMPLATE_FOLDER, tpl)):
-        items_html = "".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
-        return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>" 
-        
-    return render_template(tpl, path=abs_path, root_path=config.ROOT_PATH, files=files,
-        colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
-        drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
-        drive_mount_path=drive_mount_path)
+    path = request.args.get("path", ROOT_PATH)
+    try:
+        files = list_dir(path)
+    except Exception as e:
+        files = [{"name": f"ERROR: {e}", "is_dir": False, "full_path": "", "size": "", "size_bytes":0, "icon":"fa-exclamation-triangle"}]
+    # Very simple listing (user can replace with template in folder)
+    items = []
+    for f in files:
+        if f["is_dir"]:
+            items.append(f"[DIR] <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}")
+        else:
+            items.append(f"[FILE] <a href='/file?path={f['full_path']}'>{f['name']}</a> - {f['size']}")
+    body = "<br/>".join(items)
+    return f"<h3>Root: {ROOT_PATH}</h3><div>{body}</div><hr/><div>Toggle tunnel: <a href='/tunnel/status'>status</a> | <a href='/tunnel/start'>start</a> | <a href='/tunnel/stop'>stop</a></div>"
 
 @app.route("/file")
 def open_file():
     p = request.args.get("path","")
-    if not p: return "Path missing",400
-    try: abs_path=os.path.abspath(p)
-    except: return "Invalid path",400
-    
-    # Validasi file
-    if not utils._is_within_root(abs_path) or not os.path.exists(abs_path) or not os.path.isfile(abs_path):
-        return "File cannot be opened.",404
-        
-    ext=os.path.splitext(abs_path)[1].lower()
-    
-    # Jika file teks, tampilkan sebagai teks biasa
-    if ext in config.TEXT_FILE_EXTENSIONS:
+    if not p:
+        return "Path missing",400
+    if not os.path.exists(p):
+        return "Not found",404
+    if os.path.isdir(p):
+        return "Is a directory",400
+    # for text files, show inline
+    text_exts = {'.txt','.py','.md','.log','.json','.csv','.html','.css','.js'}
+    ext = os.path.splitext(p)[1].lower()
+    if ext in text_exts:
         try:
-            with open(abs_path,"r",encoding="utf-8",errors="ignore") as fh: content=fh.read()
-            return f"<pre>{content.replace('</','&lt;/')}</pre>"
-        except Exception as e: return f"Failed to read file: {e}",500
-        
-    # Jika bukan teks, kirim sebagai download
-    try: return send_file(abs_path, as_attachment=True)
-    except Exception as e: return f"Failed to send file: {e}",500
+            with open(p,'r',encoding='utf-8',errors='ignore') as fh:
+                return "<pre>"+fh.read().replace("</","&lt;/")+"</pre>"
+        except Exception as e:
+            return f"Failed to read: {e}",500
+    try:
+        return send_file(p, as_attachment=True)
+    except Exception as e:
+        return f"Failed to send: {e}",500
 
-def start_flask_server():
-    """Fungsi pembungkus untuk menjalankan Flask server"""
-    try: run_simple("127.0.0.1", config.PORT, app, use_reloader=False, threaded=True)
-    except Exception as e: print("Flask run error:", e)
+# --- Tunnel control endpoints ---
+@app.route("/tunnel/start", methods=["GET","POST"])
+def tunnel_start():
+    global tunnel_manager
+    if tunnel_manager is None:
+        return jsonify({"ok":False,"msg":"tunnel manager not available"}),500
+    port = request.args.get("port")
+    if port:
+        try:
+            port = int(port)
+        except:
+            return jsonify({"ok":False,"msg":"invalid port"}),400
+    else:
+        port = int(os.environ.get("NEWFLASK_PORT","8000"))
+    res = tunnel_manager.start(port)
+    return jsonify(res)
+
+@app.route("/tunnel/stop", methods=["POST","GET"])
+def tunnel_stop():
+    global tunnel_manager
+    if tunnel_manager is None:
+        return jsonify({"ok":False,"msg":"tunnel manager not available"}),500
+    res = tunnel_manager.stop()
+    return jsonify(res)
+
+@app.route("/tunnel/status")
+def tunnel_status():
+    global tunnel_manager
+    if tunnel_manager is None:
+        return jsonify({"ok":False,"msg":"tunnel manager not available"}),500
+    return jsonify(tunnel_manager.status())
