@@ -1,19 +1,19 @@
-# views.py
+# views.py (Kode FINAL yang Benar)
 import os, sys
 from flask import render_template, send_file, request, jsonify
-# Import modul lokal
-import utils
+# Gunakan import absolut di sini karena sys.path sudah diatur di Colab
+import utils 
 
 # Variabel yang akan disuntikkan dari app.py
 ROOT_PATH = "/content"
 DECRYPTION_SUCCESS = False
 TEMPLATE_FOLDER = ""
-app = None
+app = None # Biarkan ini None saat import!
 
 
-@app.route("/")
 def index():
-    # Pastikan app dan templates sudah disuntikkan
+    """Route utama untuk menampilkan file manager."""
+    # Pastikan app dan templates sudah disuntikkan sebelum digunakan
     if app is None or TEMPLATE_FOLDER == "": return "Server not fully initialized.", 500
 
     req_path = request.args.get("path", ROOT_PATH)
@@ -27,7 +27,6 @@ def index():
     drive_mount_path = "/content/drive"
     drive_total, drive_used, drive_percent = utils.get_disk_usage(drive_mount_path)
     
-    # Gunakan utils.list_dir dengan ROOT_PATH untuk keamanan
     files = utils.list_dir(abs_path, ROOT_PATH)
     tpl = "main.html"
     
@@ -42,8 +41,8 @@ def index():
         drive_mount_path=drive_mount_path)
 
 
-@app.route("/file")
 def open_file():
+    """Route untuk membuka atau mengunduh file."""
     p = request.args.get("path","")
     if not p: return "Path missing",400
     try: abs_path=os.path.abspath(p)
