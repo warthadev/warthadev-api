@@ -1,45 +1,133 @@
-import os, math, shutil
+# python/utils.py
+import os
+import math
+import shutil
+import socket
+import zipfile
+import time
 
 def format_size(size_bytes):
-    if size_bytes <= 0: return "0 B"
-    size_name = ("B","KB","MB","GB","TB")
-    i = int(math.floor(math.log(size_bytes,1024)))
-    p = math.pow(1024,i)
-    s = round(size_bytes/p,2)
-    return f"{s} {size_name[i]}"
+    try:
+        if size_bytes is None or size_bytes < 0:
+            return "0 B"
+        if size_bytes == 0:
+            return "0 B"
+        size_name = ("B","KB","MB","GB","TB")
+        i = int(math.floor(math.log(size_bytes,1024)))
+        p = math.pow(1024,i)
+        s = round(size_bytes/p,2)
+        return f"{s} {size_name[i]}"
+    except Exception:
+        return "0 B"
 
 def get_disk_usage(path):
     try:
-        if not os.path.exists(path): return 0,0,0.0
+        if not os.path.exists(path):
+            return 0,0,0.0
         total, used, free = shutil.disk_usage(path)
         percent = (used/total)*100 if total>0 else 0.0
         return total, used, percent
-    except: return 0,0,0.0
+    except Exception:
+        return 0,0,0.0
+
+def _is_within_root(root_path, path):
+    try:
+        return os.path.commonpath([os.path.realpath(root_path), os.path.realpath(path)]) == os.path.realpath(root_path)
+    except Exception:
+        return False
 
 def get_directory_size(start_path='.'):
     total_size = 0
-    for dirpath, _, filenames in os.walk(start_path):
-        for fname in filenames:
-            fp = os.path.join(dirpath, fname)
-            try:
-                if not os.path.islink(fp): total_size += os.path.getsize(fp)
-            except: continue
+    try:
+        for dirpath, _, filenames in os.walk(start_path):
+            for fname in filenames:
+                fp = os.path.join(dirpath, fname)
+                try:
+                    if not os.path.islink(fp):
+                        total_size += os.path.getsize(fp)
+                except Exception:
+                    continue
+    except Exception:
+        return -1
     return total_size
 
 def get_file_icon_class(filename):
     ext = os.path.splitext(filename)[1].lower()
-    mapping = {
-        "video": ['.mp4','.mkv','.avi','.mov','.wmv'],
-        "audio": ['.mp3','.wav','.flac','.ogg'],
-        "image": ['.jpg','.jpeg','.png','.gif','.bmp','.svg','.webp'],
-        "code":  ['.py','.java','.c','.cpp','.html','.css','.js','.json','.xml','.sh'],
-        "archive": ['.zip','.rar','.7z','.tar','.gz','.tgz'],
-        "doc": ['.pdf','.doc','.docx'],
-        "sheet": ['.xls','.xlsx','.csv'],
-        "slide": ['.ppt','.pptx'],
-        "text": ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']
-    }
-    for k,v in mapping.items():
-        if ext in v:
-            return f"fa-file-{k}"
+    if ext in ['.mp4','.mkv','.avi','.mov','.wmv']: return "fa-file-video"
+    if ext in ['.mp3','.wav','.flac','.ogg']: return "fa-file-audio"
+    if ext in ['.jpg','.jpeg','.png','.gif','.bmp','.svg','.webp']: return "fa-file-image"
+    if ext in ['.exe','.msi','.deb','.rpm','.apk']: return "fa-box"
+    if ext in ['.py','.java','.c','.cpp','.html','.css','.js','.json','.xml','.sh']: return "fa-file-code"
+    if ext in ['.zip','.rar','.7z','.tar','.gz','.tgz']: return "fa-file-archive"
+    if ext in ['.pdf']: return "fa-file-pdf"
+    if ext in ['.doc','.docx']: return "fa-file-word"
+    if ext in ['.xls','.xlsx','.csv']: return "fa-file-excel"
+    if ext in ['.ppt','.pptx']: return "fa-file-powerpoint"
+    if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"
     return "fa-file"
+
+def list_dir(path, root_path):
+    items = []
+    try:
+        if not os.path.exists(path):
+            return items
+        for name in sorted(os.listdir(path), key=lambda n: (not os.path.isdir(os.path.join(path, n)), n.lower())):
+            full_path = os.path.join(path, name)
+            if os.path.islink(full_path) and not _is_within_root(root_path, full_path):
+                continue
+            is_dir = os.path.isdir(full_path)
+            size_bytes, size_formatted, icon_class = 0, "", "fa-file"
+            if is_dir:
+                size_bytes = get_directory_size(full_path)
+                size_formatted = format_size(size_bytes) if size_bytes >= 0 else "Error"
+                icon_class = "fa-folder"
+            else:
+                try:
+                    stat = os.stat(full_path)
+                    size_bytes = stat.st_size
+                    size_formatted = format_size(size_bytes)
+                    icon_class = get_file_icon_class(name)
+                except Exception:
+                    size_formatted = "Error"
+            items.append({
+                "name": name, "is_dir": is_dir, "full_path": full_path,
+                "size": size_formatted, "size_bytes": size_bytes, "icon_class": icon_class
+            })
+    except Exception as e:
+        items.append({"name":f"ERROR: {e}", "is_dir":False,"full_path":"","size":"","icon_class":"fa-exclamation-triangle"})
+    return items
+
+# DoH resolver helper (basic)
+def doh_resolves(hostname, timeout=5):
+    try:
+        import requests
+    except Exception:
+        try:
+            socket.getaddrinfo(hostname, None)
+            return True
+        except Exception:
+            return False
+    urls = [
+        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=A",
+        f"https://dns.google/resolve?name={hostname}&type=A",
+        f"https://cloudflare-dns.com/dns-query?name={hostname}&type=AAAA",
+        f"https://dns.google/resolve?name={hostname}&type=AAAA"
+    ]
+    headers = {"Accept":"application/dns-json"}
+    for u in urls:
+        try:
+            r = requests.get(u, headers=headers, timeout=timeout)
+            if r.status_code == 200:
+                try:
+                    j = r.json()
+                    if j.get("Status") == 0 and j.get("Answer"):
+                        return True
+                except Exception:
+                    continue
+        except Exception:
+            continue
+    try:
+        socket.getaddrinfo(hostname, None)
+        return True
+    except Exception:
+        return False
