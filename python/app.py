@@ -1,21 +1,19 @@
 #!/usr/bin/env python3
-# app.py - Inti aplikasi Flask dan Eksekusi
-import os, sys, logging, importlib.util, time
+# app.py - Inti aplikasi Flask dan Eksekusi (Struktur Impor yang Lebih Stabil)
+import os, sys, logging, time
 from flask import Flask
 from werkzeug.serving import run_simple
-# Import modul lokal yang baru
-import utils, tunnel, views
+
+# Hapus Impor Modul Lokal di sini (Akan dilakukan di bawah)
 
 # --- KONFIGURASI (Akan di-overwrite oleh bootloader Colab) ---
 ROOT_PATH = "/content" 
 PORT = 8000
-# Variabel yang disuntikkan oleh bootloader, perlu dipertahankan di sini
 DECRYPTION_SUCCESS = False 
 
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
 try:
-    # BASE_DIR menunjuk ke /tmp/warthadev-api
     BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 except NameError:
     BASE_DIR = os.path.abspath(os.getcwd())
@@ -26,25 +24,45 @@ os.makedirs(TEMPLATE_FOLDER, exist_ok=True)
 
 
 # --- FLASK APP INITIALIZATION ---
+# Buat instance app dulu sebelum mengimpor views/tunnel
 app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")
+
+
+# --- IMPORT MODUL LOKAL & PENYUNTIKAN VARIABEL ---
+# Impor modul lokal sekarang (sys.path sudah diatur di Colab bootloader)
+try:
+    import utils
+    import tunnel
+    import views
+except ImportError as e:
+    # Jika masih gagal, Colab bootloader GAGAL menambahkan PYTHON_DIR ke sys.path.
+    print(f"FATAL ERROR: Gagal mengimpor modul lokal. Pastikan /python/ ada di sys.path. Error: {e}")
+    sys.exit(1)
+
+
+# Suntikkan fungsi utility ke Jinja Environment
 app.jinja_env.globals.update(format_size=utils.format_size, os_path=os.path)
 
-# Suntikkan ROOT_PATH dan DECRYPTION_SUCCESS ke modul views (opsional tapi disarankan)
+# Suntikkan variabel ke modul views
 views.ROOT_PATH = ROOT_PATH
 views.DECRYPTION_SUCCESS = DECRYPTION_SUCCESS
 views.TEMPLATE_FOLDER = TEMPLATE_FOLDER
-views.app = app # Beri views akses ke instance app
+views.app = app # SUNTIKKAN INSTANCE APP UTAMA KE MODUL VIEWS
 
-# Mendaftarkan rute dari views.py
+# Suntikkan variabel ke modul tunnel
+tunnel.PORT = PORT
+tunnel.app = app # SUNTIKKAN INSTANCE APP UTAMA KE MODUL TUNNEL
+
+
+# Mendaftarkan rute dari views.py (Menggunakan app.add_url_rule adalah cara terbaik)
 app.add_url_rule('/', view_func=views.index, methods=['GET'])
 app.add_url_rule('/file', view_func=views.open_file, methods=['GET'])
+
 
 # --- TUNNEL EXECUTION ---
 def run_flask_and_tunnel():
     """Menggunakan fungsi dari modul tunnel yang baru."""
-    # Pastikan variabel di modul tunnel sudah benar
-    tunnel.PORT = PORT
-    tunnel.app = app
+    # Semua variabel sudah disuntikkan ke modul tunnel di atas
     tunnel.run_flask_and_tunnel()
 
 
