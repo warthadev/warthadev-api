@@ -2,14 +2,27 @@ import os
 from flask import Flask, render_template, send_file, request
 from utils import format_size, get_disk_usage, list_dir, _is_within_root
 
-def create_app(root_path, template_path="/tmp/warthadev-api/html"):
+def create_app(root_path, template_path="/tmp/warthadev-api/html",
+               css_path="/tmp/warthadev-api/css", js_path="/tmp/warthadev-api/js"):
+
+    # Gabungkan semua folder statis
+    from flask import send_from_directory
     app = Flask(
         __name__, 
-        template_folder=template_path,  # pakai template di path lo
-        static_folder=root_path,
-        static_url_path="/static"
+        template_folder=template_path,
+        static_folder=None,  # kita pakai route khusus untuk CSS/JS
     )
     app.jinja_env.globals.update(format_size=format_size, os_path=os.path)
+
+    # route untuk CSS
+    @app.route("/css/<path:filename>")
+    def serve_css(filename):
+        return send_from_directory(css_path, filename)
+
+    # route untuk JS
+    @app.route("/js/<path:filename>")
+    def serve_js(filename):
+        return send_from_directory(js_path, filename)
 
     @app.route("/")
     def index():
@@ -24,7 +37,6 @@ def create_app(root_path, template_path="/tmp/warthadev-api/html"):
         drive_total, drive_used, drive_percent = get_disk_usage(drive_mount_path)
         files = list_dir(abs_path, root_path)
 
-        # langsung render template, tanpa HTML fallback
         return render_template(
             "main.html",
             path=abs_path,
