@@ -40,7 +40,9 @@ def index():
     return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,
         colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
         drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
-        drive_mount_path=drive_mount_path, format_size=utils.format_size)
+        drive_mount_path=drive_mount_path, 
+        # PERBAIKAN: Menyuntikkan format_size ke template context
+        format_size=utils.format_size)
 
 
 def open_file():
@@ -82,11 +84,11 @@ def get_thumbnail():
     if not utils._is_within_root(abs_path, ROOT_PATH) or not os.path.exists(abs_path) or not os.path.isfile(abs_path):
         return "File not found or access denied.", 404
 
-    # 2. Proses atau Ambil dari Cache (Logika caching ada di utils.py)
+    # 2. Proses atau Ambil dari Cache (Logika hashing dan caching ada di utils.py)
     cache_path = utils.generate_thumbnail(abs_path)
 
     if cache_path and os.path.exists(cache_path):
-        # 3. Kirim Thumbnail yang Sudah Dicache (Selalu JPEG)
+        # 3. Kirim Thumbnail yang Sudah Dicache (Selalu JPEG/image/jpeg karena di-convert di utils)
         return send_file(cache_path, mimetype='image/jpeg')
     else:
         # Jika gagal atau bukan file gambar, kembalikan 404 (Ini akan memicu fallback ikon di frontend)
