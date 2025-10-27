@@ -16,7 +16,7 @@
             
             <div class="disk-bar-wrapper">
                 
-                <div class="disk-item">
+                <div class="disk-item" id="colab-disk-info">
                     <strong>Colab ({{ format_size(colab_used) }} / {{ format_size(colab_total) }}):</strong>
                     <div class="progress-bar">
                         <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
@@ -24,7 +24,7 @@
                 </div>
 
                 {% if drive_total > 0 %}
-                <div class="disk-item">
+                <div class="disk-item" id="drive-disk-info">
                     <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
                     <div class="progress-bar">
                         <div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div>
@@ -39,6 +39,7 @@
         <div id="file-list" class="file-list">
             {% for f in files %}
                 {% set target_path = f['full_path'] %}
+                {# Logika pintasan MyDrive tetap dipertahankan #}
                 {% if f['is_dir'] and f['full_path'] == drive_mount_path and os_path.exists(os_path.join(drive_mount_path, "MyDrive")) %}
                     {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
                 {% endif %}
@@ -46,7 +47,7 @@
                 {% set icon_class = f['icon_class'] %}
                 
                 {% if f['is_dir'] %}
-                    <a href="/?path={{ target_path }}" class="file-item file-folder" data-path="{{ target_path }}">
+                    <a href="#" class="file-item file-folder js-folder-link" data-path="{{ target_path }}">
                         
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
                         
@@ -60,7 +61,7 @@
                         </div>
                     </a>
                 {% else %}
-                    <div class="file-item file-file" data-path="{{ f['full_path'] }}">
+                    <div class="file-item file-file js-file-item" data-path="{{ f['full_path'] }}">
 
                         <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
                         
@@ -97,21 +98,17 @@
                 <i class="fas fa-th-large"></i>
                 <span id="view-label" style="display:none;">Grid</span> </a>
             
-            {% if path != root_path %}
             {# Tombol Home #}
-            <a href="/?path={{ root_path }}" class="nav-icon">
+            <a href="#" id="home-button" data-path="{{ root_path }}" class="nav-icon js-folder-link">
                 <i class="fas fa-home"></i>
                 </a>
-            {% endif %}
             
             {# Tombol Kembali #}
-            {% if path != root_path %}
-            <a href="#" id="back-button" class="nav-icon">
+            <a href="#" id="back-button" class="nav-icon"> 
                 <i class="fas fa-arrow-left"></i>
                 </a>
-            {% endif %}
 
-            {# Tombol Dunia/Browser (Berubah menjadi Hamburger saat Seleksi) #}
+            {# Tombol Dunia/Browser #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
                 </a>
