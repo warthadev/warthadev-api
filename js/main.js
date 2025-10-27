@@ -12,6 +12,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const LONG_PRESS_THRESHOLD = 500; 
     let isSelecting = false;
     let isClipboardPopulated = false; // State untuk mengaktifkan Paste
+    let selectionMode = 0; // 0: Normal, 1: Seleksi Tunggal, 2: Seleksi Penuh
     
     // --- FUNGSI UTILITY ---
     function getAllItems() {
@@ -29,6 +30,56 @@ document.addEventListener('DOMContentLoaded', function() {
         menuToggle.style.opacity = enabled ? '1' : '0.5'; 
     }
 
+    function updateSelectionCount() {
+        const selectedCount = getSelectedItems().length;
+        const totalCount = getAllItems().length;
+        const selectionBar = document.getElementById('browser-link').querySelector('i');
+        
+        if (selectedCount > 0) {
+            selectionBar.className = 'fas fa-bars'; // Hamburger
+            // Jika Anda ingin menampilkan jumlah di footer:
+            // document.getElementById('browser-link').querySelector('span').textContent = `${selectedCount}`;
+        } else if (isClipboardPopulated) {
+             selectionBar.className = 'fas fa-paste'; // Paste
+        } else {
+            selectionBar.className = 'fas fa-globe'; // Default Browser
+        }
+
+        // Kontrol Menu Toggle (fas fa-plus vs fas fa-check)
+        if (isSelecting) {
+            if (selectedCount === totalCount && totalCount > 0) {
+                 setMenuToggleIcon('fas fa-check-double');
+                 selectionMode = 2;
+            } else if (selectedCount > 0) {
+                 setMenuToggleIcon('fas fa-check');
+                 selectionMode = 1;
+            } else {
+                 setMenuToggleIcon('fas fa-check'); // Tetap di check, tapi tidak terseleksi
+                 selectionMode = 1;
+            }
+        }
+    }
+
+    function toggleSelectionMode(activate) {
+        isSelecting = activate;
+        fileList.classList.toggle('selecting', activate);
+        
+        // Atur ulang ikon dan mode jika nonaktif
+        if (!activate) {
+            getSelectedItems().forEach(item => item.classList.remove('selected'));
+            selectionMode = 0;
+            setMenuToggleIcon('fas fa-plus', true);
+            updateSelectionCount();
+        }
+    }
+
+    function toggleMenu(show) {
+        menuOverlay.style.display = show ? 'flex' : 'none';
+        setTimeout(() => {
+            menuOverlay.classList.toggle('active', show);
+        }, 10);
+    }
+
     // --- 1. NONAKTIFKAN CONTEXT MENU MOBILE (TEKAN LAMA) ---
     document.addEventListener('contextmenu', function(e) {
         if ('ontouchstart' in window) { 
@@ -36,366 +87,124 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // --- 2. LOGIKA SELEKSI & MENU DINAMIS ---
-    
-    function handleSelectionAction(actionId, count) {
-        let message = '';
-        let shouldCloseModal = true; 
-        
-        const selectedItems = getSelectedItems();
-        const selectedPaths = Array.from(selectedItems).map(item => 
-            item.getAttribute('data-path') || item.getAttribute('href')
-        ).filter(path => path);
-
-        switch(actionId) {
-            case 'selection-copy':
-                message = `Menyalin ${count} item! (Siap untuk Tempel)`;
-                isClipboardPopulated = true; 
-                break;
-            case 'selection-move':
-                message = `Memotong ${count} item! (Siap untuk Tempel)`;
-                isClipboardPopulated = true; 
-                break;
-            case 'selection-paste':
-                message = `Tempel item dari clipboard ke ${document.getElementById('current-path-code').textContent.trim()}!`;
-                isClipboardPopulated = false; // Reset clipboard setelah paste
-                break;
-            case 'selection-slideshow':
-                message = `Memulai Slideshow untuk ${count} gambar!`;
-                break;
-            case 'selection-delete':
-                if (confirm(`Yakin ingin menghapus ${count} item yang terpilih?\nPaths:\n${selectedPaths.join('\n')}`)) {
-                    message = `Menghapus ${count} item!`;
-                    // fetch('/api/delete', { method: 'POST', body: JSON.stringify({ paths: selectedPaths }) })
-                } else {
-                    return;
-                }
-                break;
-            case 'selection-compress':
-                message = `Compress ${count} item!`;
-                break;
-            case 'selection-extract':
-                message = `Extract file kompresi!`;
-                break;
-            default:
-                message = `Aksi ${actionId} dipanggil.`;
-        }
-        
-        alert(message);
-        
-        if (shouldCloseModal) {
-            document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
-            toggleSelectionMode(false); 
-        }
-    }
-
-    function updateSelectionMenu() {
-        const selectedItems = getSelectedItems();
-        const count = selectedItems.length;
-        const menuList = menuModal.querySelector('.menu-list');
-        const allItems = getAllItems();
-        const allSelected = count === allItems.length && allItems.length > 0; // Cek status seleksi penuh
-
-        let allImages = count > 0;
-        let isSingleCompress = count === 1;
-        
-        selectedItems.forEach(item => {
-            const isFile = item.classList.contains('file-file');
-            const path = item.getAttribute('data-path') || '';
-            if (isFile && !/\.(jpe?g|png|gif|webp)$/i.test(path)) { allImages = false; }
-            if (isFile && !/\.(zip|rar|7z|tar\.gz)$/i.test(path)) { isSingleCompress = false; }
-            if (!isFile || count > 1) { isSingleCompress = false; }
-            if (!isFile) { allImages = false; }
-        });
-
-        // --- REGENERASI ISI MENU HAMBURGER ---
-        menuList.innerHTML = '';
-        const selectionActions = [];
-        
-        // Tambahkan Paste jika clipboard terisi (dan tidak ada item yang dipilih)
-        if (isClipboardPopulated && count === 0) { 
-             selectionActions.push({ id: 'selection-paste', icon: 'fas fa-paste', label: `Tempel dari Clipboard` });
-        }
-        
-        if (count > 0) {
-            selectionActions.push(
-                { id: 'selection-copy', icon: 'fas fa-copy', label: `Salin (${count})` },
-                { id: 'selection-move', icon: 'fas fa-external-link-alt', label: `Pindahkan (${count})` }
-            );
-
-            if (allImages) { selectionActions.push({ id: 'selection-slideshow', icon: 'fas fa-images', label: `Slideshow (${count})` }); }
-            
-            selectionActions.push({ id: 'selection-compress', icon: 'fas fa-file-archive', label: `Compress (${count})` });
-            
-            if (isSingleCompress) { 
-                 selectionActions.push({ id: 'selection-extract', icon: 'fas fa-file-export', label: `Extract` });
-            }
-            
-            selectionActions.push({ id: 'selection-delete', icon: 'fas fa-trash', label: `Hapus (${count})` });
-        }
-
-        // Render Menu Items
-        selectionActions.forEach(action => {
-            const itemDiv = document.createElement('div');
-            itemDiv.className = 'menu-item selection-action';
-            itemDiv.id = action.id;
-            itemDiv.innerHTML = `<i class="${action.icon}"></i> ${action.label}`;
-            menuList.appendChild(itemDiv);
-            
-            itemDiv.addEventListener('click', (e) => {
-                e.preventDefault();
-                handleSelectionAction(action.id, count);
-                toggleMenu(false); 
-            });
-        });
-        
-        // Panggil updateSelectionCount untuk mengupdate ikon Plus
-        updateSelectionCount(false);
-    }
-    
-    // Mode Ceklis: 0=Tidak Terseleksi, 1=Terseleksi Sebagian, 2=Terseleksi Penuh
-    let selectionMode = 0; 
-
-    function updateSelectionCount(shouldUpdateMenu = true) {
-        const count = getSelectedItems().length;
-        const allItems = getAllItems();
-        const totalCount = allItems.length;
-        
-        const wasSelecting = isSelecting;
-
-        if (count > 0 || isClipboardPopulated) {
-            isSelecting = true;
-            if (!wasSelecting) {
-                toggleSelectionMode(true);
-            }
-            
-            // Logika baru untuk ikon MenuToggle (+/Ceklis/Double Ceklis)
-            if (count > 0 && count < totalCount) {
-                selectionMode = 1; // Sebagian terpilih
-                setMenuToggleIcon('fas fa-check'); 
-            } else if (count === totalCount && totalCount > 0) {
-                selectionMode = 2; // Terseleksi Penuh
-                setMenuToggleIcon('fas fa-check-double');
-            } else {
-                 selectionMode = 1; // Default ceklis tunggal jika ada item
-                 setMenuToggleIcon('fas fa-check'); 
-            }
-
-            if (shouldUpdateMenu) {
-                 updateSelectionMenu(); 
-            }
-        } else if (isSelecting) {
-            // Keluar mode seleksi jika tidak ada seleksi DAN clipboard kosong
-            toggleSelectionMode(false);
-        }
-    }
-
-    // FUNGSI INTI: Mengontrol Tombol + dan Globe
-    function toggleSelectionMode(enable) {
-        isSelecting = enable;
-        
-        if (enable) {
-            // 1. Tombol PLUS (Menu Cepat) berubah menjadi Ceklis (aktif)
-            const count = getSelectedItems().length;
-            const total = getAllItems().length;
-            
-            if (count === total && total > 0) {
-                 setMenuToggleIcon('fas fa-check-double');
-                 selectionMode = 2;
-            } else {
-                 setMenuToggleIcon('fas fa-check');
-                 selectionMode = 1;
-            }
-
-            // 2. AKTIFKAN TOMBOL BROWSER sebagai Menu Hamburger
-            browserLink.style.pointerEvents = 'auto';
-            browserLink.style.opacity = '1'; 
-            browserLink.querySelector('i').className = 'fas fa-bars'; 
-            
-        } else {
-            // Saat KELUAR Mode Seleksi
-            selectionMode = 0;
-            
-            // 1. AKTIFKAN KEMBALI TOMBOL PLUS (Menu Cepat)
-            setMenuToggleIcon('fas fa-plus');
-            
-            // 2. KEMBALI ke ikon Globe/Browser
-            browserLink.style.pointerEvents = 'auto';
-            browserLink.style.opacity = '1'; 
-            browserLink.querySelector('i').className = 'fas fa-globe';
-            
-            // Hapus seleksi visual
-            document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
-        }
-    }
-    
-    function toggleItemSelection(item) {
-        item.classList.toggle('selected');
-        updateSelectionCount();
-    }
-
-    // --- 3. EVENT LONG PRESS/KLIK (DELEGATION) ---
-    
-    // ... (Logika Touch dan Mouse Events tetap sama)
-
-    // Touch Events (Mobile)
-    fileList.addEventListener('touchstart', function(e) {
-        const item = e.target.closest('.file-item');
-        if (!item) return;
-        
-        clearTimeout(pressTimer);
-        pressTimer = setTimeout(() => {
-            if (!isSelecting) {
-                e.preventDefault(); 
-                toggleSelectionMode(true);
-                toggleItemSelection(item); 
-            }
-        }, LONG_PRESS_THRESHOLD);
-    });
-
-    fileList.addEventListener('touchend', function(e) {
-        clearTimeout(pressTimer);
-    });
-    
-    fileList.addEventListener('touchcancel', function(e) {
-        clearTimeout(pressTimer);
-    });
-    
-    fileList.addEventListener('click', function(e) {
-         const item = e.target.closest('.file-item');
-         if (!item) return;
-         
-         if (isSelecting) {
-             e.preventDefault(); 
-             toggleItemSelection(item);
-         } else if (pressTimer) {
-             clearTimeout(pressTimer);
-         }
-    });
-
-    // DESKTOP/Mouse Events
-    fileList.addEventListener('mousedown', function(e) {
-         const item = e.target.closest('.file-item');
-         if (!item) return;
-         
-         clearTimeout(pressTimer);
-         pressTimer = setTimeout(() => {
-             if (!isSelecting) {
-                 e.preventDefault(); 
-                 toggleSelectionMode(true);
-                 toggleItemSelection(item); 
-             }
-         }, LONG_PRESS_THRESHOLD);
-    });
-
-    fileList.addEventListener('mouseup', function(e) {
-        clearTimeout(pressTimer);
-    });
-    
-    fileList.addEventListener('mouseleave', function(e) {
-        const item = e.target.closest('.file-item');
-        if (item) clearTimeout(pressTimer);
-    });
-    
-    fileList.addEventListener('contextmenu', (e) => {
-        const item = e.target.closest('.file-item');
-        if (!item) return;
-        
-        if (isSelecting) {
-             e.preventDefault(); 
-        }
-    });
-
-
-    // --- 4. KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
-    document.addEventListener('click', function(e) {
-        const isOutsideSelectionArea = !e.target.closest('.file-item') && !e.target.closest('#menu-overlay') && !e.target.closest('.fixed-footer');
-
-        if (isSelecting && isOutsideSelectionArea) {
-            if (!isClipboardPopulated) {
-                toggleSelectionMode(false);
-            }
-        }
-    });
-
-
-    // --- 5. FUNGSI FOOTER NAVIGASI & MENU ---
-
-    // Toggle Grid/List
-    let isGridView = sessionStorage.getItem('viewMode') === 'grid';
-    
-    const setView = (isGrid) => {
-        if (isGrid) {
+    // --- 2. GRID/LIST VIEW TOGGLE (LOGIC UTAMA) ---
+    function loadViewPreference() {
+        const view = localStorage.getItem('viewMode') || 'list-view';
+        if (view === 'grid-view') {
+            fileList.classList.remove('list-view');
             fileList.classList.add('grid-view');
-            gridToggle.querySelector('i').className = 'fas fa-list fa-fw';
-            sessionStorage.setItem('viewMode', 'grid');
+            gridToggle.querySelector('i').className = 'fas fa-list';
+            document.getElementById('view-label').textContent = 'List';
         } else {
             fileList.classList.remove('grid-view');
-            gridToggle.querySelector('i').className = 'fas fa-th-large fa-fw';
-            sessionStorage.setItem('viewMode', 'list');
+            fileList.classList.add('list-view');
+            gridToggle.querySelector('i').className = 'fas fa-th-large';
+            document.getElementById('view-label').textContent = 'Grid';
         }
-    };
-    setView(isGridView);
+    }
+    
+    // Inisialisasi tampilan
+    loadViewPreference();
 
     gridToggle.addEventListener('click', function(e) {
         e.preventDefault();
-        isGridView = !isGridView;
-        setView(isGridView);
+        const isGridView = fileList.classList.contains('grid-view');
+        
+        if (isGridView) {
+            fileList.classList.remove('grid-view');
+            fileList.classList.add('list-view');
+            gridToggle.querySelector('i').className = 'fas fa-th-large';
+            document.getElementById('view-label').textContent = 'Grid';
+            localStorage.setItem('viewMode', 'list-view');
+        } else {
+            fileList.classList.remove('list-view');
+            fileList.classList.add('grid-view');
+            gridToggle.querySelector('i').className = 'fas fa-list';
+            document.getElementById('view-label').textContent = 'List';
+            localStorage.setItem('viewMode', 'grid-view');
+        }
     });
 
+    // --- 3. SELEKSI (TEKAN LAMA & KLIK) ---
+    fileList.addEventListener('mousedown', startPress);
+    fileList.addEventListener('mouseup', endPress);
+    fileList.addEventListener('touchstart', startPress);
+    fileList.addEventListener('touchend', endPress);
+    fileList.addEventListener('click', handleItemClick, true); // Tangkap klik di fase capture
+
+    function startPress(e) {
+        if (e.target.closest('.file-item')) {
+            const item = e.target.closest('.file-item');
+            clearTimeout(pressTimer);
+            
+            // Hanya mulai timer jika tidak sedang menyeleksi atau di mode normal
+            if (!isSelecting) {
+                pressTimer = setTimeout(function() {
+                    handleLongPress(item, e);
+                }, LONG_PRESS_THRESHOLD);
+            }
+        }
+    }
+
+    function endPress() {
+        clearTimeout(pressTimer);
+    }
+
+    function handleLongPress(item, event) {
+        event.preventDefault(); // Mencegah tindakan default browser (seperti membuka link)
+        if (!isSelecting) {
+            toggleSelectionMode(true);
+            item.classList.add('selected');
+            updateSelectionCount();
+        }
+    }
+
+    function handleItemClick(e) {
+        const item = e.target.closest('.file-item');
+        if (!item) return;
+
+        // Jika sedang dalam mode seleksi
+        if (isSelecting) {
+            e.preventDefault(); // Blok navigasi
+            e.stopPropagation(); // Hentikan event agar tidak memicu link
+            
+            item.classList.toggle('selected');
+            
+            // Jika semua item dibatalkan seleksi, keluar dari mode seleksi
+            if (getSelectedItems().length === 0) {
+                 // Tidak langsung keluar, biarkan user tetap di mode seleksi
+            }
+            updateSelectionCount();
+        } 
+        // Jika tidak dalam mode seleksi, biarkan event berlanjut (membuka link)
+    }
+
+    // --- 4. NAVIGASI LAIN ---
     // Tombol Kembali
     if (backButton) {
         backButton.addEventListener('click', function(e) {
             e.preventDefault();
-            window.history.back();
+            const currentPath = document.getElementById('current-path-display').textContent;
+            const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/')) || '/';
+            // Hindari navigasi ke path yang sama jika sudah di root
+            if (parentPath !== currentPath) {
+                window.location.href = `/?path=${parentPath}`;
+            }
         });
     }
 
-    // Menu Overlay Logic
-    const toggleMenu = (show) => {
-        if (show) {
-            menuOverlay.style.display = 'flex';
-            
-            if (isSelecting || isClipboardPopulated) { 
-                menuModal.querySelector('h3').textContent = 'Menu Aksi Seleksi';
-                updateSelectionMenu(); 
-            } else {
-                menuModal.querySelector('h3').textContent = 'Menu Aksi Cepat';
-                menuModal.querySelector('.menu-list').innerHTML = `
-                     <div class="menu-item" id="alternatif-cloud"><i class="fas fa-cloud-upload-alt"></i> Alternatif Cloud</div>
-                     <div class="menu-item" id="add-folder"><i class="fas fa-folder-plus"></i> Tambah Folder Baru</div>
-                `;
-                menuModal.querySelectorAll('.menu-item').forEach(item => {
-                    item.addEventListener('click', function(e) {
-                        e.preventDefault(); 
-                        alert(`Aksi Cepat: ${item.textContent.trim()} dipanggil!`);
-                        toggleMenu(false);
-                    });
-                });
-            }
-            setTimeout(() => menuOverlay.classList.add('active'), 10); 
-        } else {
-            menuOverlay.classList.remove('active');
-            setTimeout(() => menuOverlay.style.display = 'none', 300);
-        }
-    };
-    
-    // --- PERUBAHAN UTAMA: Logika Klik Tombol MenuToggle (+) ---
+    // --- 5. LOGIKA MENU TOGGLE (BARU) ---
     menuToggle.addEventListener('click', function(e) {
         e.preventDefault();
         
-        // A. Mode NORMAL (Ikon '+')
-        if (!isSelecting && !isClipboardPopulated) { 
-            toggleMenu(true);
-            return;
+        if (!isSelecting) {
+             // Jika tidak menyeleksi, buka menu utama (Menu Aksi Normal)
+             toggleMenu(true);
+             return;
         }
 
-        // B. Mode SELEKSI AKTIF (Ikon Ceklis atau Double Ceklis)
-        const allItems = getAllItems();
-        const selectedCount = getSelectedItems().length;
-        const totalCount = allItems.length;
-
-        if (totalCount === 0) return; // Tidak ada item untuk diseleksi
+        // --- Logika Seleksi Massal saat MenuToggle di mode ceklis ---
+        const allItems = getAllItems(); // Ambil semua item untuk diseleksi
 
         if (selectionMode === 1) { // Status Ceklis Tunggal (fas fa-check): Seleksi Penuh
             // Pilih semua item
@@ -412,7 +221,6 @@ document.addEventListener('DOMContentLoaded', function() {
         // Setelah aksi seleksi, update Menu Hamburger
         updateSelectionCount(); 
     });
-    // --- AKHIR PERUBAHAN UTAMA ---
     
     // Tombol BROWSER/HAMBURGER (Menu Aksi Seleksi/Paste)
     browserLink.addEventListener('click', function(e) {
@@ -421,6 +229,7 @@ document.addEventListener('DOMContentLoaded', function() {
             alert('Membuka link Browser/Dunia!');
             // window.location.href = 'URL_BROWSER_DEFAULT'; 
         } else {
+            // Jika ada yang terseleksi atau clipboard terisi, buka Menu Aksi
             toggleMenu(true);
         } 
     });
@@ -436,6 +245,7 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // Inisialisasi
-    updateSelectionCount(); 
+    // --- 6. MENU OVERLAY ACTIONS (Perlu diisi dengan aksi nyata nanti) ---
+    // Di sini Anda akan menambahkan event listeners untuk tombol-tombol di dalam menu-list.
+    // Contoh: document.getElementById('delete-selected').addEventListener('click', handleDelete);
 });
