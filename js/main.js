@@ -13,13 +13,16 @@ document.addEventListener('DOMContentLoaded', function() {
     let pressTimer;
     const LONG_PRESS_THRESHOLD = 500; 
     let isSelecting = false;
-    let isClipboardPopulated = false; // State untuk mengaktifkan Paste
+    let isClipboardPopulated = false; 
     
-    // Mode Ceklis: 0=Tidak Terseleksi, 1=Terseleksi Sebagian, 2=Terseleksi Penuh
     let selectionMode = 0; 
     
     // Ambil rootPath Colab dari data-path tombol Home
     const rootPath = homeButton ? homeButton.getAttribute('data-path').trim() : '/'; 
+    // Definisikan path Drive
+    const driveMountPath = "/content/drive";
+    const myDrivePath = "/content/drive/MyDrive";
+
 
     // --- FUNGSI UTILITY ---
     function getAllItems() {
@@ -36,7 +39,6 @@ document.addEventListener('DOMContentLoaded', function() {
         menuToggle.style.opacity = enabled ? '1' : '0.5'; 
     }
 
-    // FUNGSI AJAX: Membuat elemen item file dari data JSON
     function createItemElement(file) {
         const path = file.full_path;
         const iconClass = file.icon_class;
@@ -45,7 +47,7 @@ document.addEventListener('DOMContentLoaded', function() {
         const wrapper = document.createElement(isDir ? 'a' : 'div');
         wrapper.className = `file-item ${isDir ? 'file-folder js-folder-link' : 'file-file js-file-item'}`;
         
-        if (isDir) { wrapper.href = '#'; } // Cegah navigasi browser default
+        if (isDir) { wrapper.href = '#'; } 
 
         wrapper.setAttribute('data-path', path);
 
@@ -61,11 +63,11 @@ document.addEventListener('DOMContentLoaded', function() {
         return wrapper;
     }
 
-    // FUNGSI AJAX: Merender ulang daftar file setelah fetch data
-    function renderFileList(data) {
+    function renderFileList(data, pushHistory = true) {
         fileList.innerHTML = ''; 
         
-        currentPathCode.textContent = data.current_path;
+        const finalPathForRendering = data.current_path;
+        currentPathCode.textContent = finalPathForRendering;
         
         data.files.forEach(file => {
             const item = createItemElement(file);
@@ -75,28 +77,25 @@ document.addEventListener('DOMContentLoaded', function() {
         setView(isGridView); 
         toggleSelectionMode(false);
         
-        const url = `/?path=${encodeURIComponent(data.current_path)}`;
-        window.history.pushState({path: data.current_path}, '', url);
+        if (pushHistory) {
+            const url = `/?path=${encodeURIComponent(finalPathForRendering)}`;
+            window.history.pushState({path: finalPathForRendering}, '', url);
+        }
     }
     
     // FUNGSI INTI AJAX: Mengambil data folder dari server
-    async function fetchDirData(path, pushHistory = true) { // Tambahkan flag pushHistory
+    async function fetchDirData(path, pushHistory = true) {
         if (path === undefined || path === null) return;
         
-        // Cek Pintasan MyDrive: Jika mencoba kembali ke '/content/driver' (path root Colab)
-        // dan path saat ini adalah '/content/driver/MyDrive', ganti path ke '/content/driver'
-        // agar tidak terjadi loop navigasi di Colab.
         const currentPath = currentPathCode.textContent.trim();
-
-        if (path.endsWith("/MyDrive") && currentPath.endsWith("/MyDrive") && path.length > currentPath.length) {
-            // Jika user mencoba klik folder MyDrive, padahal sudah di dalamnya (jaga-jaga)
-        } else if (path === "/content/driver/MyDrive" && currentPath === rootPath) {
-            // Navigasi awal dari root ke MyDrive
-        } else if (currentPath === "/content/driver/MyDrive" && path === "/content/driver") {
-            // Ketika tombol Back dari MyDrive. Pastikan path yang diminta adalah rootPath.
-            path = rootPath; 
+        
+        // ************************************************
+        // * PENTING: LOGIKA PINTASAN MyDrive DITAMBAH DI SINI *
+        // ************************************************
+        if (path === driveMountPath && currentPath !== myDrivePath) {
+             path = myDrivePath; // Redirect ke MyDrive
         }
-
+        
         // Jika path yang diminta sama dengan path saat ini (dan bukan refresh), abaikan
         if (path === currentPath && pushHistory) return;
 
@@ -113,24 +112,8 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.status === 'success') {
-                fileList.innerHTML = ''; // Kosongkan saat rendering
-                currentPathCode.textContent = data.current_path;
-                
-                // Cek Pintasan MyDrive untuk tombol Kembali/Home
-                const finalPathForRendering = data.current_path;
-
-                data.files.forEach(file => {
-                    const item = createItemElement(file);
-                    fileList.appendChild(item);
-                });
-                
-                setView(isGridView); 
-                toggleSelectionMode(false);
-
-                if (pushHistory) {
-                    const url = `/?path=${encodeURIComponent(finalPathForRendering)}`;
-                    window.history.pushState({path: finalPathForRendering}, '', url);
-                }
+                // Gunakan renderFileList untuk merender dan menangani history
+                renderFileList(data, pushHistory);
             } else {
                 alert(`Gagal memuat folder: ${data.message || 'Error tidak diketahui'}`);
             }
@@ -156,20 +139,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         switch(actionId) {
             case 'selection-copy':
-                message = `Menyalin ${count} item! (Siap untuk Tempel)`;
-                isClipboardPopulated = true; 
-                break;
             case 'selection-move':
-                message = `Memotong ${count} item! (Siap untuk Tempel)`;
                 isClipboardPopulated = true; 
+                message = `Operasi disiapkan untuk ${actionId.replace('selection-', '')}.`;
                 break;
             case 'selection-paste':
-                message = `Tempel item dari clipboard ke ${document.getElementById('current-path-code').textContent.trim()}!`;
                 isClipboardPopulated = false; 
+                message = `Tempel item dari clipboard ke ${currentPathCode.textContent.trim()}!`;
                 fetch('/api/clear-cache', { method: 'POST' }); 
                 break;
             case 'selection-delete':
-                if (confirm(`Yakin ingin menghapus ${count} item yang terpilih?\nPaths:\n${selectedPaths.join('\n')}`)) {
+                if (confirm(`Yakin ingin menghapus ${count} item?`)) {
                     message = `Menghapus ${count} item!`;
                     fetch('/api/clear-cache', { method: 'POST' }); 
                 } else {
@@ -185,11 +165,12 @@ document.addEventListener('DOMContentLoaded', function() {
         if (shouldCloseModal) {
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
             toggleSelectionMode(false); 
-            fetchDirData(currentPathCode.textContent.trim(), false); // Refresh folder setelah aksi
+            fetchDirData(currentPathCode.textContent.trim(), false); // Refresh folder
         }
     }
 
     function updateSelectionMenu() {
+        // ... (Logika pembuatan menu tetap sama) ...
         const selectedItems = getSelectedItems();
         const count = selectedItems.length;
         const menuList = menuModal.querySelector('.menu-list');
@@ -336,6 +317,41 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // ... (Logika touchstart, touchend, mousedown, mouseup tetap sama) ...
+    fileList.addEventListener('touchstart', function(e) {
+        const item = e.target.closest('.file-item');
+        if (!item) return;
+        clearTimeout(pressTimer);
+        pressTimer = setTimeout(() => {
+            if (!isSelecting) {
+                e.preventDefault(); 
+                toggleSelectionMode(true);
+                toggleItemSelection(item); 
+            }
+        }, LONG_PRESS_THRESHOLD);
+    });
+
+    fileList.addEventListener('touchend', function(e) {
+        clearTimeout(pressTimer);
+    });
+
+    fileList.addEventListener('mousedown', function(e) {
+         const item = e.target.closest('.file-item');
+         if (!item) return;
+         
+         clearTimeout(pressTimer);
+         pressTimer = setTimeout(() => {
+             if (!isSelecting) {
+                 e.preventDefault(); 
+                 toggleSelectionMode(true);
+                 toggleItemSelection(item); 
+             }
+         }, LONG_PRESS_THRESHOLD);
+    });
+
+    fileList.addEventListener('mouseup', function(e) {
+        clearTimeout(pressTimer);
+    });
+
 
     // --- KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
     document.addEventListener('click', function(e) {
@@ -385,8 +401,8 @@ document.addEventListener('DOMContentLoaded', function() {
             let targetPath;
             
             // Logika pintasan: Jika di MyDrive, kembali ke root Colab
-            if (currentPath.endsWith("/MyDrive")) {
-                targetPath = rootPath; 
+            if (currentPath.startsWith(myDrivePath)) {
+                targetPath = driveMountPath; // Mundur satu tingkat ke /content/drive
             } else {
                 // Logika kembali normal: potong path terakhir
                 const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
@@ -397,7 +413,7 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Tombol Home (AJAX) - Menggunakan data-path rootPath
+    // Tombol Home (AJAX)
     if (homeButton) {
         homeButton.addEventListener('click', function(e) {
             e.preventDefault();
@@ -405,17 +421,14 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-
     // Handle History PopState (Jika user menggunakan tombol back/forward browser)
     window.addEventListener('popstate', function(e) {
-        // Ambil path dari state history, jika tidak ada, gunakan path saat ini.
-        const path = e.state ? e.state.path : currentPathCode.textContent.trim();
+        const path = e.state ? e.state.path : rootPath;
         if (path) { fetchDirData(path, false); } // Jangan push history lagi
     });
 
     // Menu Overlay Logic
     const toggleMenu = (show) => {
-        // ... (Logika toggleMenu tetap sama) ...
         if (show) {
             menuOverlay.style.display = 'flex';
             
@@ -443,27 +456,25 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
-    // --- Logika Klik Tombol MenuToggle (+) ---
+    // Logika Klik Tombol MenuToggle (+)
     menuToggle.addEventListener('click', function(e) {
         e.preventDefault();
         
         const allItems = getAllItems();
         const totalCount = allItems.length;
 
-        // A. Mode NORMAL/PASTE: Buka Menu
-        if (selectionMode === 0) { 
+        if (selectionMode === 0 && !isClipboardPopulated) { 
             toggleMenu(true);
             return;
         }
 
-        // B. Mode SELEKSI AKTIF
         if (totalCount === 0) return; 
 
-        if (selectionMode === 1) { // Seleksi Sebagian -> Seleksi Penuh
+        if (selectionMode === 1) { 
             allItems.forEach(item => item.classList.add('selected'));
             setMenuToggleIcon('fas fa-check-double');
             selectionMode = 2;
-        } else if (selectionMode === 2) { // Seleksi Penuh -> Batalkan Seleksi
+        } else if (selectionMode === 2) { 
             allItems.forEach(item => item.classList.remove('selected'));
             selectionMode = 0; 
             toggleSelectionMode(false); 
@@ -482,7 +493,6 @@ document.addEventListener('DOMContentLoaded', function() {
         } 
     });
 
-    // Menutup Menu
     closeMenuButton.addEventListener('click', function() { toggleMenu(false); });
     menuOverlay.addEventListener('click', function(e) {
         if (e.target.id === 'menu-overlay') { toggleMenu(false); }
