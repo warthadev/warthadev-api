@@ -17,9 +17,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     let selectionMode = 0; 
     
-    // Ambil rootPath Colab dari data-path tombol Home
     const rootPath = homeButton ? homeButton.getAttribute('data-path').trim() : '/'; 
-    // Definisikan path Drive
     const driveMountPath = "/content/drive";
     const myDrivePath = "/content/drive/MyDrive";
 
@@ -89,14 +87,13 @@ document.addEventListener('DOMContentLoaded', function() {
         
         const currentPath = currentPathCode.textContent.trim();
         
-        // ************************************************
-        // * PENTING: LOGIKA PINTASAN MyDrive DITAMBAH DI SINI *
-        // ************************************************
-        if (path === driveMountPath && currentPath !== myDrivePath) {
-             path = myDrivePath; // Redirect ke MyDrive
+        // ******************************************************
+        // * LOGIKA LOMPATAN DRIVE: /content/drive -> MyDrive *
+        // ******************************************************
+        if (path === driveMountPath) {
+             path = myDrivePath; // Lompat ke MyDrive
         }
         
-        // Jika path yang diminta sama dengan path saat ini (dan bukan refresh), abaikan
         if (path === currentPath && pushHistory) return;
 
         fileList.style.opacity = 0.5;
@@ -112,7 +109,6 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.status === 'success') {
-                // Gunakan renderFileList untuk merender dan menangani history
                 renderFileList(data, pushHistory);
             } else {
                 alert(`Gagal memuat folder: ${data.message || 'Error tidak diketahui'}`);
@@ -165,12 +161,11 @@ document.addEventListener('DOMContentLoaded', function() {
         if (shouldCloseModal) {
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
             toggleSelectionMode(false); 
-            fetchDirData(currentPathCode.textContent.trim(), false); // Refresh folder
+            fetchDirData(currentPathCode.textContent.trim(), false); 
         }
     }
 
     function updateSelectionMenu() {
-        // ... (Logika pembuatan menu tetap sama) ...
         const selectedItems = getSelectedItems();
         const count = selectedItems.length;
         const menuList = menuModal.querySelector('.menu-list');
@@ -316,7 +311,6 @@ document.addEventListener('DOMContentLoaded', function() {
          }
     });
 
-    // ... (Logika touchstart, touchend, mousedown, mouseup tetap sama) ...
     fileList.addEventListener('touchstart', function(e) {
         const item = e.target.closest('.file-item');
         if (!item) return;
@@ -400,9 +394,11 @@ document.addEventListener('DOMContentLoaded', function() {
 
             let targetPath;
             
-            // Logika pintasan: Jika di MyDrive, kembali ke root Colab
-            if (currentPath.startsWith(myDrivePath)) {
-                targetPath = driveMountPath; // Mundur satu tingkat ke /content/drive
+            // ***********************************************
+            // * LOGIKA LOMPATAN BALIK: MyDrive -> Root Colab *
+            // ***********************************************
+            if (currentPath === myDrivePath || currentPath.startsWith(myDrivePath + "/")) {
+                targetPath = rootPath; // Lompat langsung ke /
             } else {
                 // Logika kembali normal: potong path terakhir
                 const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
@@ -421,10 +417,10 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
-    // Handle History PopState (Jika user menggunakan tombol back/forward browser)
+    // Handle History PopState 
     window.addEventListener('popstate', function(e) {
         const path = e.state ? e.state.path : rootPath;
-        if (path) { fetchDirData(path, false); } // Jangan push history lagi
+        if (path) { fetchDirData(path, false); } 
     });
 
     // Menu Overlay Logic
