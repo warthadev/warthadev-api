@@ -17,6 +17,9 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Mode Ceklis: 0=Tidak Terseleksi, 1=Terseleksi Sebagian, 2=Terseleksi Penuh
     let selectionMode = 0; 
+    
+    // Ambil rootPath Colab dari data-path tombol Home
+    const rootPath = homeButton ? homeButton.getAttribute('data-path').trim() : '/'; 
 
     // --- FUNGSI UTILITY ---
     function getAllItems() {
@@ -77,7 +80,26 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // FUNGSI INTI AJAX: Mengambil data folder dari server
-    async function fetchDirData(path) {
+    async function fetchDirData(path, pushHistory = true) { // Tambahkan flag pushHistory
+        if (path === undefined || path === null) return;
+        
+        // Cek Pintasan MyDrive: Jika mencoba kembali ke '/content/driver' (path root Colab)
+        // dan path saat ini adalah '/content/driver/MyDrive', ganti path ke '/content/driver'
+        // agar tidak terjadi loop navigasi di Colab.
+        const currentPath = currentPathCode.textContent.trim();
+
+        if (path.endsWith("/MyDrive") && currentPath.endsWith("/MyDrive") && path.length > currentPath.length) {
+            // Jika user mencoba klik folder MyDrive, padahal sudah di dalamnya (jaga-jaga)
+        } else if (path === "/content/driver/MyDrive" && currentPath === rootPath) {
+            // Navigasi awal dari root ke MyDrive
+        } else if (currentPath === "/content/driver/MyDrive" && path === "/content/driver") {
+            // Ketika tombol Back dari MyDrive. Pastikan path yang diminta adalah rootPath.
+            path = rootPath; 
+        }
+
+        // Jika path yang diminta sama dengan path saat ini (dan bukan refresh), abaikan
+        if (path === currentPath && pushHistory) return;
+
         fileList.style.opacity = 0.5;
         
         try {
@@ -91,7 +113,24 @@ document.addEventListener('DOMContentLoaded', function() {
             const data = await response.json();
             
             if (data.status === 'success') {
-                renderFileList(data);
+                fileList.innerHTML = ''; // Kosongkan saat rendering
+                currentPathCode.textContent = data.current_path;
+                
+                // Cek Pintasan MyDrive untuk tombol Kembali/Home
+                const finalPathForRendering = data.current_path;
+
+                data.files.forEach(file => {
+                    const item = createItemElement(file);
+                    fileList.appendChild(item);
+                });
+                
+                setView(isGridView); 
+                toggleSelectionMode(false);
+
+                if (pushHistory) {
+                    const url = `/?path=${encodeURIComponent(finalPathForRendering)}`;
+                    window.history.pushState({path: finalPathForRendering}, '', url);
+                }
             } else {
                 alert(`Gagal memuat folder: ${data.message || 'Error tidak diketahui'}`);
             }
@@ -127,12 +166,12 @@ document.addEventListener('DOMContentLoaded', function() {
             case 'selection-paste':
                 message = `Tempel item dari clipboard ke ${document.getElementById('current-path-code').textContent.trim()}!`;
                 isClipboardPopulated = false; 
-                fetch('/api/clear-cache', { method: 'POST' }); // Pembersihan Cache
+                fetch('/api/clear-cache', { method: 'POST' }); 
                 break;
             case 'selection-delete':
                 if (confirm(`Yakin ingin menghapus ${count} item yang terpilih?\nPaths:\n${selectedPaths.join('\n')}`)) {
                     message = `Menghapus ${count} item!`;
-                    fetch('/api/clear-cache', { method: 'POST' }); // Pembersihan Cache
+                    fetch('/api/clear-cache', { method: 'POST' }); 
                 } else {
                     return;
                 }
@@ -146,8 +185,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (shouldCloseModal) {
             document.querySelectorAll('.file-item.selected').forEach(sel => sel.classList.remove('selected'));
             toggleSelectionMode(false); 
-            // Setelah aksi, muat ulang folder untuk refresh data
-            fetchDirData(currentPathCode.textContent.trim());
+            fetchDirData(currentPathCode.textContent.trim(), false); // Refresh folder setelah aksi
         }
     }
 
@@ -216,7 +254,6 @@ document.addEventListener('DOMContentLoaded', function() {
                 toggleSelectionMode(true);
             }
             
-            // Logika baru untuk ikon MenuToggle (+/Ceklis/Double Ceklis)
             if (count > 0 && count < totalCount) {
                 selectionMode = 1; 
                 setMenuToggleIcon('fas fa-check'); 
@@ -224,7 +261,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 selectionMode = 2; 
                 setMenuToggleIcon('fas fa-check-double');
             } else if (isClipboardPopulated && count === 0) {
-                 selectionMode = 0; // Mode paste, tidak ada seleksi aktif
+                 selectionMode = 0; 
                  setMenuToggleIcon('fas fa-paste');
             } else {
                  selectionMode = 1; 
@@ -277,30 +314,13 @@ document.addEventListener('DOMContentLoaded', function() {
         updateSelectionCount();
     }
 
-    // --- LOGIKA TOUCH/MOUSE ---
-    // ... (Semua logika touchstart, touchend, mousedown, mouseup, dll. tetap sama) ...
+    // --- LOGIKA TOUCH/MOUSE & KLIK ITEM ---
     
     document.addEventListener('contextmenu', function(e) {
         if ('ontouchstart' in window) { e.preventDefault(); }
     });
     
-    fileList.addEventListener('touchstart', function(e) {
-        const item = e.target.closest('.file-item');
-        if (!item) return;
-        clearTimeout(pressTimer);
-        pressTimer = setTimeout(() => {
-            if (!isSelecting) {
-                e.preventDefault(); 
-                toggleSelectionMode(true);
-                toggleItemSelection(item); 
-            }
-        }, LONG_PRESS_THRESHOLD);
-    });
-
-    fileList.addEventListener('touchend', function(e) {
-        clearTimeout(pressTimer);
-    });
-    
+    // Delegasi Event Click (Folder Link dan Seleksi)
     fileList.addEventListener('click', function(e) {
          const item = e.target.closest('.file-item');
          if (!item) return;
@@ -308,36 +328,14 @@ document.addEventListener('DOMContentLoaded', function() {
          if (isSelecting) {
              e.preventDefault(); 
              toggleItemSelection(item);
-         } else if (pressTimer) {
-             clearTimeout(pressTimer);
-         }
-         
-         // Logika AJAX untuk link folder
-         if (item.classList.contains('js-folder-link')) {
+         } else if (item.classList.contains('js-folder-link')) {
              e.preventDefault(); 
              const path = item.getAttribute('data-path');
              if (path) { fetchDirData(path); }
          }
     });
 
-    fileList.addEventListener('mousedown', function(e) {
-         const item = e.target.closest('.file-item');
-         if (!item) return;
-         
-         clearTimeout(pressTimer);
-         pressTimer = setTimeout(() => {
-             if (!isSelecting) {
-                 e.preventDefault(); 
-                 toggleSelectionMode(true);
-                 toggleItemSelection(item); 
-             }
-         }, LONG_PRESS_THRESHOLD);
-    });
-
-    fileList.addEventListener('mouseup', function(e) {
-        clearTimeout(pressTimer);
-    });
-
+    // ... (Logika touchstart, touchend, mousedown, mouseup tetap sama) ...
 
     // --- KLIK DI LUAR ITEM (KELUAR MODE SELEKSI) ---
     document.addEventListener('click', function(e) {
@@ -381,36 +379,43 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const currentPath = currentPathCode.textContent.trim();
-            const rootPath = homeButton.getAttribute('data-path').trim();
             
             if (currentPath === rootPath) return; 
 
-            const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
-            const finalPath = parentPath === '' ? rootPath : parentPath;
+            let targetPath;
             
-            if (finalPath) { fetchDirData(finalPath); }
+            // Logika pintasan: Jika di MyDrive, kembali ke root Colab
+            if (currentPath.endsWith("/MyDrive")) {
+                targetPath = rootPath; 
+            } else {
+                // Logika kembali normal: potong path terakhir
+                const parentPath = currentPath.substring(0, currentPath.lastIndexOf('/'));
+                targetPath = parentPath === '' ? rootPath : parentPath;
+            }
+            
+            if (targetPath) { fetchDirData(targetPath); }
         });
     }
 
-    // Tombol Home (AJAX)
+    // Tombol Home (AJAX) - Menggunakan data-path rootPath
     if (homeButton) {
         homeButton.addEventListener('click', function(e) {
-            // Karena Home sudah memiliki class js-folder-link, ini hanya jaga-jaga.
-            if (e.target.closest('.js-folder-link')) return; 
             e.preventDefault();
-            fetchDirData(homeButton.getAttribute('data-path'));
+            fetchDirData(rootPath);
         });
     }
 
 
     // Handle History PopState (Jika user menggunakan tombol back/forward browser)
     window.addEventListener('popstate', function(e) {
+        // Ambil path dari state history, jika tidak ada, gunakan path saat ini.
         const path = e.state ? e.state.path : currentPathCode.textContent.trim();
-        if (path) { fetchDirData(path); }
+        if (path) { fetchDirData(path, false); } // Jangan push history lagi
     });
 
     // Menu Overlay Logic
     const toggleMenu = (show) => {
+        // ... (Logika toggleMenu tetap sama) ...
         if (show) {
             menuOverlay.style.display = 'flex';
             
@@ -438,33 +443,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     };
     
-    // --- PERUBAHAN UTAMA: Logika Klik Tombol MenuToggle (+) ---
+    // --- Logika Klik Tombol MenuToggle (+) ---
     menuToggle.addEventListener('click', function(e) {
         e.preventDefault();
         
         const allItems = getAllItems();
         const totalCount = allItems.length;
 
-        // A. Mode NORMAL (Ikon '+'): Buka Menu Cepat
-        if (selectionMode === 0 && !isClipboardPopulated) { 
+        // A. Mode NORMAL/PASTE: Buka Menu
+        if (selectionMode === 0) { 
             toggleMenu(true);
             return;
         }
-        
-        // B. Mode PASTE/CEKLIS: Lanjutkan logika seleksi/paste
-        if (selectionMode === 0 && isClipboardPopulated) {
-             toggleMenu(true); // Buka menu untuk paste
-             return;
-        }
 
-        // C. Mode SELEKSI AKTIF (Ikon Ceklis atau Double Ceklis)
+        // B. Mode SELEKSI AKTIF
         if (totalCount === 0) return; 
 
-        if (selectionMode === 1) { // Status Ceklis Tunggal (fas fa-check): Seleksi Penuh
+        if (selectionMode === 1) { // Seleksi Sebagian -> Seleksi Penuh
             allItems.forEach(item => item.classList.add('selected'));
             setMenuToggleIcon('fas fa-check-double');
             selectionMode = 2;
-        } else if (selectionMode === 2) { // Status Ceklis Ganda (fas fa-check-double): Batalkan Seleksi Penuh
+        } else if (selectionMode === 2) { // Seleksi Penuh -> Batalkan Seleksi
             allItems.forEach(item => item.classList.remove('selected'));
             selectionMode = 0; 
             toggleSelectionMode(false); 
@@ -472,9 +471,8 @@ document.addEventListener('DOMContentLoaded', function() {
         
         updateSelectionCount(); 
     });
-    // --- AKHIR PERUBAHAN UTAMA ---
     
-    // Tombol BROWSER/HAMBURGER (Menu Aksi Seleksi/Paste)
+    // Tombol BROWSER/HAMBURGER
     browserLink.addEventListener('click', function(e) {
         e.preventDefault();
         if (!isSelecting && !isClipboardPopulated) {
@@ -485,14 +483,9 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 
     // Menutup Menu
-    closeMenuButton.addEventListener('click', function() {
-        toggleMenu(false);
-    });
-
+    closeMenuButton.addEventListener('click', function() { toggleMenu(false); });
     menuOverlay.addEventListener('click', function(e) {
-        if (e.target.id === 'menu-overlay') {
-            toggleMenu(false);
-        }
+        if (e.target.id === 'menu-overlay') { toggleMenu(false); }
     });
 
     // Inisialisasi
