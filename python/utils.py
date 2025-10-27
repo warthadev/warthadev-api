@@ -1,5 +1,7 @@
-# utils.py
+# utils.py - Toolset dengan Cache LRU pada list_dir
+
 import os, math, shutil, re, sys
+import functools # <-- BARIS BARU: Import untuk fungsionalitas cache
 
 # --- UTILITY FUNCTIONS ---
 def format_size(size_bytes):
@@ -51,8 +53,12 @@ def get_file_icon_class(filename):
     if ext in ['.txt','.log','.md','.ini','.cfg','.yml','.yaml']: return "fa-file-alt"
     return "fa-file"
 
+@functools.lru_cache(maxsize=128) # <-- BARIS KUNCI: CACHING DITERAPKAN DI SINI
 def list_dir(path, root_path):
     files=[]
+    # Pesan ini akan muncul di log Colab hanya saat terjadi Cache Miss (membaca disk)
+    print(f"CACHE HIT/MISS: Membaca disk untuk {path}") 
+    
     try:
         if not os.path.exists(path): return files
         # Sortir: Folder dulu, lalu file, case-insensitive
