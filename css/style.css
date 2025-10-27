@@ -5,11 +5,11 @@ body {
     margin: 0; 
     background-color: #f4f4f4; 
     
-    /* Cegah Seleksi Teks di Seluruh Halaman */
-    -webkit-user-select: none;
-    -moz-user-select: none;    
-    -ms-user-select: none;     
-    user-select: none;         
+    /* PERBAIKAN UTAMA: Cegah Seleksi Teks di Seluruh Halaman */
+    -webkit-user-select: none; /* Chrome, Safari, Opera */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE/Edge */
+    user-select: none;         /* Standard property */
 }
 .container { 
     max-width: 800px; 
@@ -63,8 +63,8 @@ a { text-decoration: none; color: inherit; }
 /* FILE ITEM (LIST VIEW - Horizontal size) */
 .file-item { 
     display: flex; 
-    align-items: center; /* Ikon, Teks, dan Ceklis sejajar di tengah vertikal */
-    /* ⭐️ Hapus justify-content: space-between, akan diatur oleh flex: 1 pada .file-text-container */
+    justify-content: space-between; 
+    align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
     transition: background-color 0.2s, border 0.2s, box-shadow 0.2s; 
@@ -80,23 +80,15 @@ a { text-decoration: none; color: inherit; }
     cursor: pointer;
 }
 
-/* 1. Ikon Utama (File/Folder) */
-.file-item i { 
-    margin-right: 15px; 
-    color: #555; 
-    font-size: 1.5em; 
-    flex-shrink: 0;
-    transition: opacity 0.2s; /* Tambahkan transisi untuk icon utama */
-}
+.file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
 
-/* 2. Kontainer Teks: Mengisi ruang tersisa */
+/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal (menggunakan Flexbox) */
 .file-text-container { 
-    flex: 1; /* Mengambil semua ruang di tengah */
+    flex: 1; 
     overflow: hidden; 
     display: flex; 
     align-items: center;
-    /* ⭐️ Menyebarkan Nama (kiri) dan Ukuran (kanan) */
-    justify-content: space-between; 
+    justify-content: space-between;
     min-width: 0;
 }
 
@@ -106,39 +98,14 @@ a { text-decoration: none; color: inherit; }
     overflow: hidden;
     text-overflow: ellipsis; 
     white-space: nowrap;
-    flex-shrink: 1; /* Boleh menyusut jika ukuran file terlalu panjang */
-    /* ⭐️ Tambahkan margin agar Nama tidak menempel pada Size jika terlalu panjang */
-    margin-right: 10px;
 }
-
-/* 3. Ukuran File/Folder (Pojok Kanan Text Container) */
 .file-size { 
     font-size: 0.8em; 
     color: #6c757d; 
+    margin-left: auto; 
+    padding-left: 15px; 
     white-space: nowrap;
-    flex-shrink: 0; /* Tidak boleh menyusut */
-    margin-left: auto; /* Mendorong ke kanan kontainer teks */
-    padding-left: 15px;
 }
-
-/* 4. Ikon Ceklis (Hanya di List View, di Grid View menggunakan Teks Absolute) */
-/* Ceklis belum ada di HTML, kita gunakan pseudo-element atau asumsikan ada elemen terpisah */
-/* ASUMSI: Anda akan menambahkan elemen <i class="fas fa-check-circle file-checkmark"></i> di main.html */
-.file-checkmark {
-    font-size: 1.2em;
-    flex-shrink: 0;
-    margin-left: 15px;
-    
-    /* ⭐️ PENGATURAN UTAMA: Default Transparan */
-    color: transparent; 
-    transition: color 0.2s;
-}
-
-/* ⭐️ Hanya Tampilkan Ceklis saat .selected AKTIF ⭐️ */
-.file-item.selected .file-checkmark {
-    color: #007bff; /* Warna biru saat terpilih */
-}
-
 
 /* Sembunyikan Teks Absolute di List View */
 .file-name-absolute, .file-size-absolute {
@@ -153,7 +120,7 @@ a { text-decoration: none; color: inherit; }
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.2); 
 }
 
-/* --- GRID VIEW STYLES --- (Tetap Pertahankan Gaya Awal Anda) */
+/* --- GRID VIEW STYLES --- */
 .file-list.grid-view {
     display: grid; 
     gap: 10px; 
@@ -227,15 +194,10 @@ a { text-decoration: none; color: inherit; }
     z-index: 5;
 }
 
-/* ⭐️ Sembunyikan Ikon Ceklis di Grid View (jika Anda menambahkannya di HTML) */
-.file-list.grid-view .file-checkmark {
-    display: none;
-}
-
 
 /* --- RESPONSIVE MEDIA QUERIES --- */
-/* (Tetap sama) */
 
+/* Mobile: 2 Kolom Grid dan Disk Bar Vertikal */
 @media (max-width: 600px) {
     .file-list.grid-view { 
         grid-template-columns: repeat(2, 1fr); 
@@ -245,6 +207,7 @@ a { text-decoration: none; color: inherit; }
     }
 }
 
+/* Desktop/Tablet Besar: 4 Kolom Grid */
 @media (min-width: 601px) {
     .file-list.grid-view { 
         grid-template-columns: repeat(4, 1fr); 
@@ -258,8 +221,11 @@ a { text-decoration: none; color: inherit; }
     bottom: 0; 
     width: 100%; 
     max-width: 800px; 
+    
+    /* Centering horizontal agar footer terkunci di tengah */
     left: 50%; 
     transform: translateX(-50%);
+
     background-color: #212529; 
     color: white; 
     box-shadow: 0 -2px 4px rgba(0,0,0,0.1); 
@@ -277,6 +243,8 @@ a { text-decoration: none; color: inherit; }
     color: #ced4da; 
     transition: color 0.2s;
     cursor: pointer;
+    
+    /* Pastikan setiap nav-icon mengambil lebar yang sama */
     flex-grow: 1; 
     flex-basis: 0; 
 }
