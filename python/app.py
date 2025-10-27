@@ -9,7 +9,7 @@ ROOT_PATH = "/content"
 PORT = 8000
 DECRYPTION_SUCCESS = False 
 # BARU: Konfigurasi Thumbnail dari Bootloader
-THUMBNAIL_CACHE_PATH = "/tmp/thumbs" 
+THUMBNAIL_CACHE_PATH = "/tmp/colab_thumbs_cache" 
 THUMBNAIL_SIZE = (1024, 1024)
 
 # Variabel Global untuk modul (akan diisi di setup_app)
