@@ -6,10 +6,10 @@ body {
     background-color: #f4f4f4; 
     
     /* PERBAIKAN UTAMA: Cegah Seleksi Teks di Seluruh Halaman */
-    -webkit-user-select: none; 
-    -moz-user-select: none;    
-    -ms-user-select: none;     
-    user-select: none;         
+    -webkit-user-select: none; /* Chrome, Safari, Opera */
+    -moz-user-select: none;    /* Firefox */
+    -ms-user-select: none;     /* IE/Edge */
+    user-select: none;         /* Standard property */
 }
 .container { 
     max-width: 800px; 
@@ -57,12 +57,13 @@ a { text-decoration: none; color: inherit; }
 .progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
 .progress { height: 10px; border-radius: 5px; background-color: #007bff; transition: width 0.4s; }
 
-/* --- FILE LIST (COMMON) --- */
+/* FILE LIST */
 .file-list { padding: 20px; padding-top: 5px; display: block; }
 
 /* FILE ITEM (LIST VIEW - Horizontal size) */
 .file-item { 
     display: flex; 
+    justify-content: space-between; 
     align-items: center; 
     padding: 10px 15px; 
     border-bottom: 1px solid #eee; 
@@ -79,72 +80,39 @@ a { text-decoration: none; color: inherit; }
     cursor: pointer;
 }
 
-/* Ikon/Gambar Kontainer */
-.file-item .file-icon { 
-    margin-right: 15px; 
-    color: #555; 
-    font-size: 1.5em; 
-    flex-shrink: 0; 
-    
-    /* Tambahan untuk Thumbnail: memastikan 40x40 di List View */
-    width: 40px; 
-    height: 40px;
-    display: flex; /* Tambahan agar ikon/gambar sejajar */
-    align-items: center; 
-    justify-content: center;
-    position: relative;
-    overflow: hidden;
-}
+.file-item i { margin-right: 15px; color: #555; font-size: 1.5em; }
 
-/* [LIST VIEW] Kontainer Teks Utama */
+/* [LIST VIEW] Mengatur agar nama dan ukuran sejajar horizontal (menggunakan Flexbox) */
 .file-text-container { 
     flex: 1; 
     overflow: hidden; 
     display: flex; 
-    justify-content: space-between; 
     align-items: center;
-    min-width: 0; 
-    margin-right: 15px; 
+    justify-content: space-between;
+    min-width: 0;
 }
 
-/* Nama File */
 .file-name { 
     font-weight: 500; 
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis; 
     white-space: nowrap;
-    flex-shrink: 1;
-    margin-right: 15px;
 }
-
-/* ⭐️ Ukuran File (TAMPIL DI LIST VIEW) ⭐️ */
 .file-size { 
     font-size: 0.8em; 
     color: #6c757d; 
-    white-space: nowrap;
-    flex-shrink: 0; 
     margin-left: auto; 
-    display: block; 
+    padding-left: 15px; 
+    white-space: nowrap;
 }
 
-/* Sembunyikan Teks Absolute (Hanya untuk Grid View) di List View */
+/* Sembunyikan Teks Absolute di List View */
 .file-name-absolute, .file-size-absolute {
     display: none;
 }
 
-/* Checkmark */
-.file-item .fa-check-circle {
-    color: #ced4da; 
-    font-size: 1.2em;
-    flex-shrink: 0;
-}
-.file-item.selected .fa-check-circle {
-    color: #007bff; 
-}
-
-
-/* --- STYLE UNTUK SELEKSI --- */
+/* --- STYLE UNTUK SELEKSI BARU (LIST VIEW) --- */
 .file-item.selected,
 .file-item.selected:hover { 
     background-color: #e2f0ff; 
@@ -160,11 +128,9 @@ a { text-decoration: none; color: inherit; }
 }
 
 .file-list.grid-view .file-item {
-    /* ⭐️ Kembalikan ke rasio 1:1 menggunakan trik padding */
     height: 0; 
     padding-bottom: 100%; 
     padding-top: 0;
-    
     position: relative;
     display: block;
     text-align: center;      
@@ -187,58 +153,18 @@ a { text-decoration: none; color: inherit; }
     display: none; 
 }
 
-/* Ikon/Gambar Kontainer di Grid View */
-.file-list.grid-view .file-icon {
-    position: absolute; /* Menjadi absolut agar tidak memengaruhi tinggi 1:1 */
-    top: 0; 
-    left: 0;
-    width: 100%; /* Mengisi seluruh area 1:1 */
-    height: 100%;
-    
-    /* Atur ulang Ikon (agar tetap besar di tengah) */
+/* Ikon CENTER ABSOLUTE MUTLAK */
+.file-list.grid-view .file-item i {
     font-size: 3.0em; 
-}
-
-/* Ikon di Grid View (sebagai Fallback) */
-.file-list.grid-view .file-icon i {
+    margin: 0; 
+    padding: 0;
     position: absolute;
     top: 50%;
     left: 50%;
     transform: translate(-50%, -50%);
-    display: block; /* Default: Ikon selalu muncul */
 }
 
-/* ⭐️ LOGIKA THUMBNAIL BARU (GRID VIEW) ⭐️ */
-
-/* Gambar Thumbnail */
-.file-list.grid-view .file-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain; /* Agar gambar tidak terpotong, menjaga rasio aspek */
-    display: none; /* Default tersembunyi */
-    position: absolute;
-    top: 0;
-    left: 0;
-    z-index: 2; /* Di atas ikon */
-}
-
-/* Kondisi 1: Jika gambar dimuat, tampilkan gambar dan sembunyikan ikon */
-.file-list.grid-view .file-icon img:not(.hide-img) { 
-    display: block; 
-}
-.file-list.grid-view .file-icon img:not(.hide-img) + i { 
-    display: none; 
-}
-
-/* Kondisi 2: Jika gambar gagal dimuat (kelas .hide-img dari JS onerror), tampilkan ikon */
-.file-list.grid-view .file-icon img.hide-img {
-    display: none !important; /* Pastikan gambar gagal tersembunyi */
-}
-.file-list.grid-view .file-icon img.hide-img + i {
-    display: block !important; /* Paksa ikon fallback muncul */
-}
-
-/* --- Teks Absolute di Grid View --- */
+/* Teks Absolute di Grid View */
 .file-list.grid-view .file-name-absolute {
     display: block;
     position: absolute;
@@ -271,7 +197,7 @@ a { text-decoration: none; color: inherit; }
 
 /* --- RESPONSIVE MEDIA QUERIES --- */
 
-/* Mobile: 2 Kolom Grid */
+/* Mobile: 2 Kolom Grid dan Disk Bar Vertikal */
 @media (max-width: 600px) {
     .file-list.grid-view { 
         grid-template-columns: repeat(2, 1fr); 
@@ -296,6 +222,7 @@ a { text-decoration: none; color: inherit; }
     width: 100%; 
     max-width: 800px; 
     
+    /* Centering horizontal agar footer terkunci di tengah */
     left: 50%; 
     transform: translateX(-50%);
 
@@ -317,6 +244,7 @@ a { text-decoration: none; color: inherit; }
     transition: color 0.2s;
     cursor: pointer;
     
+    /* Pastikan setiap nav-icon mengambil lebar yang sama */
     flex-grow: 1; 
     flex-basis: 0; 
 }
@@ -349,7 +277,11 @@ a { text-decoration: none; color: inherit; }
     transition: transform 0.3s ease-out;
 }
 
-#menu-modal h3 {
+#menu-overlay.active .menu-modal {
+    transform: translateY(0);
+}
+
+.menu-modal h3 {
     margin-top: 0;
     border-bottom: 2px solid #eee;
     padding-bottom: 10px;
