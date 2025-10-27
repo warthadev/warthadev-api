@@ -42,16 +42,19 @@
             <a href="{% if f.is_dir %}/?path={{ f.full_path }}{% else %}/file?path={{ f.full_path }}{% endif %}" class="file-item {% if f.is_dir %}is-dir{% endif %}" data-path="{{ f.full_path }}">
                 
                 <div class="file-icon">
+                    {# ⭐️ PERUBAHAN UTAMA: Logika Thumbnail #}
+                    {# Cek apakah file adalah gambar (menggunakan icon_class "fas fa-image") dan bukan folder #}
                     {% if not f.is_dir and f.icon_class == 'fas fa-image' %}
-                        {# ⭐️ BARU: Tampilkan Thumbnail jika file adalah Gambar #}
+                        {# Tampilkan Thumbnail: Memanggil endpoint /thumb #}
                         <img 
                             loading="lazy" 
                             src="{{ url_for('get_thumbnail', path=f.full_path) }}" 
                             alt="{{ f.name }}" 
                             title="{{ f.name }}"
+                            {# Logika Fallback JS: Jika gambar gagal dimuat, sembunyikan IMG dan tampilkan Ikon #}
                             onerror="this.onerror=null; this.src=''; this.classList.add('hide-img'); this.nextElementSibling.classList.remove('hide-icon');"
                         >
-                        {# Ikon Fallback (tersembunyi secara default, muncul jika gambar gagal) #}
+                        {# Ikon Fallback (tersembunyi secara default, muncul jika gambar gagal atau dalam List View) #}
                         <i class="{{ f.icon_class }} hide-icon"></i> 
                     {% else %}
                         {# Folder atau jenis file lainnya: Tampilkan ikon saja #}
