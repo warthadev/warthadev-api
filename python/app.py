@@ -10,7 +10,7 @@ PORT = 8000
 DECRYPTION_SUCCESS = False 
 
 # Variabel Global untuk modul (akan diisi di setup_app)
-global utils, tunnel, views, app
+global utils, tunnel, views, app, cache # <-- TAMBAH 'cache'
 
 logging.getLogger("werkzeug").setLevel(logging.ERROR)
 
@@ -29,17 +29,16 @@ def setup_app():
     Fungsi ini menangani semua impor modul lokal, inisialisasi Flask,
     dan penyuntikan variabel untuk menghindari konflik urutan impor (ModuleNotFoundError).
     """
-    global utils, tunnel, views, app
+    global utils, tunnel, views, app, cache # <-- TAMBAH 'cache'
     
     # --- 1. IMPORT MODUL LOKAL ---
-    # Impor modul lokal dilakukan di sini agar prosesnya terisolasi dan tertangkap.
     try:
         import utils
         import tunnel
         import views
+        import cache # <-- IMPORT MODUL CACHE BARU
     except ImportError as e:
         print(f"FATAL ERROR: Gagal mengimpor modul lokal. Pastikan /python/ ada di sys.path. Error: {e}")
-        # Jika impor gagal, program harus dihentikan
         raise RuntimeError(f"Gagal memuat modul Flask: {e}") from e
 
     # --- 2. FLASK APP INITIALIZATION ---
@@ -48,34 +47,35 @@ def setup_app():
     # Suntikkan fungsi utility ke Jinja Environment
     app.jinja_env.globals.update(format_size=utils.format_size, os_path=os.path)
 
-    # --- 3. PENYUNTIKAN VARIABEL GLOBAL KE VIEWS DAN TUNNEL ---
-    # Menyuntikkan variabel yang dibutuhkan oleh fungsi-fungsi di modul
+    # --- 3. PENYUNTIKAN VARIABEL GLOBAL KE VIEWS, TUNNEL, DAN CACHE ---
     
     # Views membutuhkan konfigurasi path dan instance app
     views.ROOT_PATH = ROOT_PATH
     views.DECRYPTION_SUCCESS = DECRYPTION_SUCCESS
     views.TEMPLATE_FOLDER = TEMPLATE_FOLDER
-    views.app = app # SUNTIKKAN INSTANCE APP UTAMA KE MODUL VIEWS
+    views.app = app 
+    views.cache = cache # <-- SUNTIKKAN MODUL CACHE KE VIEWS
 
     # Tunnel membutuhkan port dan instance app
     tunnel.PORT = PORT
-    tunnel.app = app # SUNTIKKAN INSTANCE APP UTAMA KE MODUL TUNNEL
+    tunnel.app = app 
+    
+    # Cache (tidak ada variabel yang dibutuhkan saat ini, tapi bisa ditambahkan)
     
     # --- 4. PENDAFTARAN RUTE ---
-    # Rute didaftarkan menggunakan app.add_url_rule (views.py TIDAK boleh punya @app.route)
     app.add_url_rule('/', view_func=views.index, methods=['GET'])
     app.add_url_rule('/file', view_func=views.open_file, methods=['GET'])
+    app.add_url_rule('/api/data', view_func=views.get_dir_data, methods=['GET']) # <-- RUTE API BARU UNTUK AJAX
+    app.add_url_rule('/api/clear-cache', view_func=views.clear_app_cache, methods=['POST']) # <-- RUTE UNTUK DEBUG/TEST
 
     print("✅ Aplikasi Flask berhasil diinisialisasi dan modul disuntikkan.")
     
-    # Return instance app yang sudah siap
     return app
 
 
 # --- TUNNEL EXECUTION ---
 def run_flask_and_tunnel():
     """Menggunakan fungsi dari modul tunnel yang baru."""
-    # Dipanggil setelah setup_app()
     if 'tunnel' not in globals():
         raise RuntimeError("Modul tunnel belum diimpor. Jalankan setup_app() dulu.")
     
