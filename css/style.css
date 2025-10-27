@@ -5,11 +5,11 @@ body {
     margin: 0; 
     background-color: #f4f4f4; 
     
-    /* PERBAIKAN UTAMA: Cegah Seleksi Teks di Seluruh Halaman */
-    -webkit-user-select: none; /* Chrome, Safari, Opera */
-    -moz-user-select: none;    /* Firefox */
-    -ms-user-select: none;     /* IE/Edge */
-    user-select: none;         /* Standard property */
+    /* Cegah Seleksi Teks di Seluruh Halaman */
+    -webkit-user-select: none; 
+    -moz-user-select: none;    
+    -ms-user-select: none;     
+    user-select: none;         
 }
 .container { 
     max-width: 800px; 
@@ -41,253 +41,259 @@ a { text-decoration: none; color: inherit; }
     flex-grow: 1; 
     background-color: #e9ecef;
     border-radius: 4px;
-    padding: 5px 10px;
-    flex-basis: 40%; /* Minimal lebar di mobile */
+    padding: 8px 10px;
 }
-.progress-bar {
-    background-color: #ccc;
-    height: 8px;
-    border-radius: 4px;
+
+.current-path { 
+    background-color: #f8f8f8; 
+    padding: 8px 15px; 
+    border-radius: 4px; 
+    font-size: 0.9em; 
+    white-space: nowrap; 
     overflow: hidden;
-    margin-top: 3px;
-}
-.progress {
-    height: 100%;
-    transition: width 0.5s ease;
-    background-color: #007bff; /* Warna default colab */
+    text-overflow: ellipsis; 
 }
 
-/* Update warna progress bar untuk drive jika ada */
-.disk-item:nth-child(2) .progress { 
-    background-color: #28a745; 
-}
+.progress-bar { width: 100%; background-color: #ccc; border-radius: 5px; overflow: hidden; margin-top: 5px; }
+.progress { height: 10px; border-radius: 5px; background-color: #007bff; transition: width 0.4s; }
 
+/* --- FILE LIST (LIST VIEW ASLI) --- */
+.file-list { padding: 20px; padding-top: 5px; display: block; }
 
-.current-path {
-    font-size: 0.9em;
-    word-break: break-all;
-}
-
-/* --- FILE LIST (COMMON) --- */
-.file-list {
-    padding: 0 0px; 
-}
-.file-item {
-    display: flex;
-    align-items: center;
-    padding: 10px 20px;
-    border-bottom: 1px solid #f4f4f4;
-    transition: background-color 0.15s;
+.file-item { 
+    display: flex; 
+    justify-content: space-between; 
+    align-items: center; 
+    padding: 10px 15px; 
+    border-bottom: 1px solid #eee; 
+    transition: background-color 0.2s, border 0.2s, box-shadow 0.2s; 
+    cursor: default; 
     position: relative;
+    border: 1px solid transparent; 
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0); 
+}
+
+.file-item:not(.selected):hover {
+    background-color: #f8f9fa; 
     cursor: pointer;
 }
-.file-item:hover {
-    background-color: #f8f8f8;
-}
 
-/* Checkbox (Checkmark) */
-.file-checkbox {
-    margin-left: auto;
-    width: 20px;
-    height: 20px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    color: #ccc;
-    font-size: 1.2em;
-    transition: color 0.2s;
-}
-.file-item.selected .file-checkbox {
-    color: #007bff;
-}
-
-/* File Icon Area (Penting untuk Thumbnail) */
-.file-icon {
-    width: 40px;
-    height: 40px;
+/* ⭐️ BARU: FILE ICON CONTAINER untuk menangani IMG dan I */
+.file-icon-container {
+    width: 24px; /* Biar sejajar dengan margin i */
+    height: 24px;
     margin-right: 15px;
+    position: relative;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 1.5em;
-    color: #888;
-    overflow: hidden; /* Penting untuk gambar */
-    position: relative; /* Penting untuk menempatkan img di atas i */
 }
 
-/* File Details (Name and Size) */
-.file-details {
-    display: flex;
-    flex-direction: column;
-    flex-grow: 1;
+/* Ikon List View */
+.file-item i { 
+    color: #555; 
+    font-size: 1.5em; 
+    margin: 0; /* Margin dipindahkan ke .file-icon-container */
+}
+
+/* Teks dan Ukuran List View */
+.file-text-container { 
+    flex: 1; 
+    overflow: hidden; 
+    display: flex; 
+    align-items: center;
+    justify-content: space-between;
+    min-width: 0;
+}
+
+.file-name { 
+    font-weight: 500; 
+    min-width: 0;
     overflow: hidden;
+    text-overflow: ellipsis; 
     white-space: nowrap;
 }
-.file-name {
-    font-weight: 500;
-    font-size: 1em;
-    overflow: hidden;
-    text-overflow: ellipsis;
-}
-.file-size {
-    font-size: 0.8em;
-    color: #999;
+.file-size { 
+    font-size: 0.8em; 
+    color: #6c757d; 
+    margin-left: auto; 
+    padding-left: 15px; 
+    white-space: nowrap;
 }
 
-
-/* --- LIST VIEW SPECIFIC --- */
-.list-view .file-item {
-    flex-direction: row;
-}
-.list-view .file-icon {
-    /* Atur ikon di List View */
-    width: 40px;
-    height: 40px;
-    font-size: 1.5em;
-}
-.list-view .file-details {
-    min-width: 150px; /* Untuk mengatasi wrap path yang terlalu pendek */
+/* Sembunyikan Teks Absolute di List View */
+.file-name-absolute, .file-size-absolute {
+    display: none;
 }
 
-
-/* --- GRID VIEW SPECIFIC --- */
-.grid-view {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-    gap: 10px;
-    padding: 10px; 
+/* Status Seleksi */
+.file-item.selected,
+.file-item.selected:hover { 
+    background-color: #e2f0ff; 
+    border: 1px solid #007bff; 
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.2); 
 }
-.grid-view .file-item {
-    flex-direction: column;
-    align-items: center;
-    text-align: center;
+
+/* --- GRID VIEW STYLES (ASLI) --- */
+.file-list.grid-view {
+    display: grid; 
+    gap: 10px; 
     padding: 10px;
-    border: 1px solid #eee;
+}
+
+.file-list.grid-view .file-item {
+    height: 0; 
+    padding-bottom: 100%; /* Membuat kotak (rasio 1:1) */
+    padding-top: 0;
+    position: relative;
+    display: block;
+    text-align: center;      
     border-radius: 8px;
-    height: 180px; /* Tinggi total item di grid */
-    border-bottom: none; 
+    overflow: hidden; 
+    border: 2px solid #ddd; 
+    box-shadow: 0 0 5px rgba(0, 0, 0, 0); 
 }
-.grid-view .file-item:hover {
-    background-color: #f0f0f0;
+
+.file-list.grid-view .file-item.selected,
+.file-list.grid-view .file-item.selected:hover {
+     border: 2px solid #007bff; 
+     box-shadow: 0 0 5px rgba(0, 123, 255, 0.2);
 }
-.grid-view .file-icon {
-    /* Ukuran besar untuk gambar/ikon di Grid View */
-    width: 100%;
-    height: 120px; /* Tinggi khusus untuk thumbnail */
-    margin: 0 0 5px 0;
-    font-size: 3em;
+
+/* Sembunyikan Teks List View di Grid View */
+.file-list.grid-view .file-text-container {
+    display: none; 
 }
-.grid-view .file-details {
-    flex-grow: 0;
-    width: 100%;
-    text-align: center;
-}
-.grid-view .file-name {
-    font-size: 0.9em;
-}
-.grid-view .file-size {
-    display: none; /* Sembunyikan ukuran di Grid View */
-}
-.grid-view .file-checkbox {
+
+/* ⭐️ PERUBAHAN THUMBNAIL DI GRID VIEW ⭐️ */
+
+/* Ikon di Grid View (Ikon default, disembunyikan jika ada IMG) */
+.file-list.grid-view .file-item i {
+    font-size: 3.0em; 
     position: absolute;
-    top: 5px;
-    right: 5px;
-    margin: 0;
-    z-index: 10;
-    background-color: rgba(255, 255, 255, 0.8);
-    border-radius: 50%;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    z-index: 2; /* Di atas IMG */
+    display: block; /* Default tampil */
 }
 
-
-/* ⭐️ THUMBNAIL SPECIFIC STYLES (BARU) ⭐️ */
-
-/* Image Thumbnail (Selalu tampilkan ikon secara default di List View) */
-.file-icon i {
-    display: block; 
-}
-
-/* Image Thumbnail */
-.file-icon img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover; /* Penting agar gambar mengisi kotak tanpa terdistorsi */
-    border-radius: 4px;
-    display: none; /* Default tersembunyi, diaktifkan oleh grid-view */
+/* BARU: IMG Element (Thumbnail) */
+.file-item img {
     position: absolute;
     top: 0;
     left: 0;
+    width: 100%;
+    height: 100%;
+    
+    /* ⭐️ UKURAN POTRET: Gambar akan tampil penuh di dalam kotak 1:1, tidak terpotong */
+    object-fit: contain; 
+    
+    background-color: white; /* Hindari transparansi jika gambar potret */
+    display: none; /* Default tersembunyi */
+    z-index: 1;
 }
 
-/* Fallback Classes dari main.html onerror */
-.file-icon img.hide-img {
-    display: none !important; /* Gambar yang gagal dimuat */
+/* BARU: Tampilkan IMG di Grid View jika ada */
+.file-list.grid-view .file-item .file-icon-container img {
+    display: block;
 }
-.file-icon i.hide-icon {
-    /* Di List View, semua ikon tampil. Di Grid View, ini adalah fallback */
-    display: block !important; 
+
+/* BARU: Sembunyikan Ikon default jika IMG tampil di Grid View */
+/* Catatan: Karena kita tidak bisa cek IMG di CSS, kita pakai class .file-file untuk gambar */
+.file-list.grid-view .file-item.file-file i {
+    display: none;
+}
+/* Fallback: Jika gambar gagal dimuat, kita perlu JS untuk menghapus class/menambah class agar ikon default muncul */
+
+
+/* Teks Absolute di Grid View */
+.file-list.grid-view .file-name-absolute {
+    display: block;
+    position: absolute;
+    top: 5px; left: 5px; 
+    max-width: 85%; 
+    font-size: 0.7em;
+    color: #495057;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 4px;
+    background-color: rgba(255, 255, 255, 0.85); 
+    border-radius: 3px;
+    font-weight: bold;
     z-index: 5;
 }
 
-/* --- LOGIKA TAMPILAN IMAGE DI GRID --- */
-
-/* Di Grid View, jika ada IMG, tampilkan IMG dan sembunyikan Ikon */
-.grid-view .file-icon img {
-    display: block; /* Tampilkan gambar di Grid View */
-}
-/* Di Grid View, sembunyikan ikon default jika gambar ada */
-.grid-view .file-icon i {
-    display: none; 
-}
-/* Di Grid View, jika gambar gagal (img.hide-img), ikon fallback (i.hide-icon) akan tampil */
-
-
-/* --- LOGIKA TAMPILAN IMAGE DI LIST VIEW --- */
-
-/* Di List View, sembunyikan IMG dan tampilkan Ikon */
-.list-view .file-icon img {
-    display: none; 
-}
-.list-view .file-icon i {
-    display: block; /* Tampilkan ikon default di List View */
+.file-list.grid-view .file-size-absolute {
+    display: block;
+    position: absolute;
+    bottom: 5px; right: 5px; 
+    font-size: 0.7em;
+    color: #6c757d;
+    padding: 2px 4px;
+    background-color: rgba(255, 255, 255, 0.85);
+    border-radius: 3px;
+    z-index: 5;
 }
 
 
-/* --- FIXED FOOTER (NAVIGASI) --- */
-.fixed-footer {
-    position: fixed;
-    bottom: 0;
-    left: 0;
-    width: 100%;
-    max-width: 800px; /* Batasi lebar sesuai container */
-    margin: auto;
-    background-color: #343a40;
-    color: white;
-    display: flex;
-    justify-content: space-around;
-    align-items: center;
-    padding: 5px 0;
-    z-index: 100;
-    box-shadow: 0 -2px 5px rgba(0, 0, 0, 0.1);
+/* --- RESPONSIVE MEDIA QUERIES --- */
+
+/* Mobile: 2 Kolom Grid dan Disk Bar Vertikal */
+@media (max-width: 600px) {
+    .file-list.grid-view { 
+        grid-template-columns: repeat(2, 1fr); 
+    }
+    .disk-bar-wrapper {
+        flex-direction: column;
+    }
+}
+
+/* Desktop/Tablet Besar: 4 Kolom Grid */
+@media (min-width: 601px) {
+    .file-list.grid-view { 
+        grid-template-columns: repeat(4, 1fr); 
+    }
+}
+
+
+/* FIXED FOOTER (NAVBAR) */
+.fixed-footer { 
+    position: fixed; 
+    bottom: 0; 
+    width: 100%; 
+    max-width: 800px; 
     
-    /* Posisikan di tengah jika container lebih kecil dari viewport */
-    right: 0;
+    left: 50%; 
+    transform: translateX(-50%);
+
+    background-color: #212529; 
+    color: white; 
+    box-shadow: 0 -2px 4px rgba(0,0,0,0.1); 
+    z-index: 100; 
+    display: flex; 
+    justify-content: space-around; 
+    align-items: center; 
+    height: 55px;
 }
-.nav-icon {
-    color: #ccc;
-    padding: 10px;
+.nav-icon { 
+    display: flex; 
+    flex-direction: column; 
+    align-items: center; 
+    padding: 5px; 
+    color: #ced4da; 
     transition: color 0.2s;
     cursor: pointer;
     
-    /* Pastikan setiap nav-icon mengambil lebar yang sama */
     flex-grow: 1; 
     flex-basis: 0; 
-    text-align: center;
 }
 .nav-icon i { font-size: 1.5em; }
 .nav-icon span { display: none; }
 .nav-icon:hover { color: #ffffff; }
 
-/* --- MENU OVERLAY STYLES --- */
+/* --- MENU OVERLAY STYLES --- (Tidak diubah) */
 #menu-overlay {
     position: fixed;
     top: 0;
@@ -320,73 +326,38 @@ a { text-decoration: none; color: inherit; }
     margin-top: 0;
     border-bottom: 2px solid #eee;
     padding-bottom: 10px;
+    color: #343a40;
     display: flex;
     justify-content: space-between;
     align-items: center;
 }
-.menu-modal .close-btn {
+
+.menu-item { 
+    padding: 12px 10px;
+    border-bottom: 1px solid #f8f9fa;
+    cursor: pointer;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+}
+
+.menu-item:last-child {
+    border-bottom: none; 
+}
+
+.menu-item:hover {
+    background-color: #e9ecef;
+}
+
+.menu-item i {
+    margin-right: 15px;
+    color: #007bff;
+}
+
+.close-btn {
     background: none;
     border: none;
     font-size: 1.5em;
+    color: #adb5bd;
     cursor: pointer;
-    color: #666;
-}
-
-.menu-list div {
-    padding: 10px 0;
-    border-bottom: 1px solid #f4f4f4;
-    cursor: pointer;
-    color: #333;
-    transition: background-color 0.1s;
-}
-.menu-list div:hover {
-    background-color: #f8f8f8;
-}
-.menu-list div i {
-    margin-right: 10px;
-}
-
-/* FILE VIEWER MODAL */
-#file-viewer-modal {
-    z-index: 200;
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    height: 100%;
-    background-color: rgba(0, 0, 0, 0.8);
-    display: none;
-    justify-content: center;
-    align-items: center;
-}
-#file-viewer-modal .modal-content {
-    background-color: #333;
-    color: #eee;
-    width: 95%;
-    height: 95%;
-    padding: 10px;
-    overflow: hidden;
-    display: flex;
-    flex-direction: column;
-    border-radius: 8px;
-}
-#viewer-filename {
-    color: #fff;
-    margin-bottom: 5px;
-    font-size: 1em;
-    padding: 0 10px;
-}
-#viewer-content {
-    flex-grow: 1;
-    overflow: auto;
-    background-color: #222;
-    padding: 10px;
-    font-family: monospace;
-    font-size: 0.9em;
-    border-radius: 4px;
-}
-#viewer-content pre {
-    margin: 0;
-    white-space: pre-wrap;
-    word-wrap: break-word;
 }
