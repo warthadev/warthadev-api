@@ -54,7 +54,15 @@ a { text-decoration: none; color: inherit; }
 .progress {
     height: 100%;
     transition: width 0.5s ease;
+    background-color: #007bff; /* Warna default colab */
 }
+
+/* Update warna progress bar untuk drive jika ada */
+.disk-item:nth-child(2) .progress { 
+    background-color: #28a745; 
+}
+
+
 .current-path {
     font-size: 0.9em;
     word-break: break-all;
@@ -104,6 +112,7 @@ a { text-decoration: none; color: inherit; }
     font-size: 1.5em;
     color: #888;
     overflow: hidden; /* Penting untuk gambar */
+    position: relative; /* Penting untuk menempatkan img di atas i */
 }
 
 /* File Details (Name and Size) */
@@ -192,6 +201,11 @@ a { text-decoration: none; color: inherit; }
 
 /* ⭐️ THUMBNAIL SPECIFIC STYLES (BARU) ⭐️ */
 
+/* Image Thumbnail (Selalu tampilkan ikon secara default di List View) */
+.file-icon i {
+    display: block; 
+}
+
 /* Image Thumbnail */
 .file-icon img {
     width: 100%;
@@ -199,6 +213,9 @@ a { text-decoration: none; color: inherit; }
     object-fit: cover; /* Penting agar gambar mengisi kotak tanpa terdistorsi */
     border-radius: 4px;
     display: none; /* Default tersembunyi, diaktifkan oleh grid-view */
+    position: absolute;
+    top: 0;
+    left: 0;
 }
 
 /* Fallback Classes dari main.html onerror */
@@ -206,7 +223,9 @@ a { text-decoration: none; color: inherit; }
     display: none !important; /* Gambar yang gagal dimuat */
 }
 .file-icon i.hide-icon {
-    display: block !important; /* Ikon fallback yang tampil */
+    /* Di List View, semua ikon tampil. Di Grid View, ini adalah fallback */
+    display: block !important; 
+    z-index: 5;
 }
 
 /* --- LOGIKA TAMPILAN IMAGE DI GRID --- */
@@ -215,16 +234,21 @@ a { text-decoration: none; color: inherit; }
 .grid-view .file-icon img {
     display: block; /* Tampilkan gambar di Grid View */
 }
+/* Di Grid View, sembunyikan ikon default jika gambar ada */
 .grid-view .file-icon i {
-    display: none; /* Sembunyikan ikon di Grid View (kecuali fallback) */
+    display: none; 
 }
+/* Di Grid View, jika gambar gagal (img.hide-img), ikon fallback (i.hide-icon) akan tampil */
+
+
+/* --- LOGIKA TAMPILAN IMAGE DI LIST VIEW --- */
 
 /* Di List View, sembunyikan IMG dan tampilkan Ikon */
 .list-view .file-icon img {
     display: none; 
 }
 .list-view .file-icon i {
-    display: block;
+    display: block; /* Tampilkan ikon default di List View */
 }
 
 
@@ -325,6 +349,15 @@ a { text-decoration: none; color: inherit; }
 /* FILE VIEWER MODAL */
 #file-viewer-modal {
     z-index: 200;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.8);
+    display: none;
+    justify-content: center;
+    align-items: center;
 }
 #file-viewer-modal .modal-content {
     background-color: #333;
@@ -335,6 +368,7 @@ a { text-decoration: none; color: inherit; }
     overflow: hidden;
     display: flex;
     flex-direction: column;
+    border-radius: 8px;
 }
 #viewer-filename {
     color: #fff;
