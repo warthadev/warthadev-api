@@ -1,18 +1,20 @@
-# views.py (Kode FINAL yang Benar)
+# views.py (Kode FINAL - Mendukung Caching dan AJAX/JSON)
 import os, sys
 from flask import render_template, send_file, request, jsonify
 # Gunakan import absolut di sini karena sys.path sudah diatur di Colab
 import utils 
+# import cache # <-- TIDAK PERLU diimpor di sini karena sudah disuntikkan via app.py
 
 # Variabel yang akan disuntikkan dari app.py
 ROOT_PATH = "/content"
 DECRYPTION_SUCCESS = False
 TEMPLATE_FOLDER = ""
-app = None # Biarkan ini None saat import!
+app = None 
+cache = None # <-- BARIS BARU: Variabel untuk menerima modul cache
 
 
 def index():
-    """Route utama untuk menampilkan file manager."""
+    """Route utama untuk menampilkan file manager (digunakan hanya untuk pemuatan halaman awal)."""
     # Pastikan app dan templates sudah disuntikkan sebelum digunakan
     if app is None or TEMPLATE_FOLDER == "": return "Server not fully initialized.", 500
 
@@ -23,10 +25,12 @@ def index():
     # Keamanan: Pastikan path berada di dalam ROOT_PATH
     if not utils._is_within_root(abs_path, ROOT_PATH) or not os.path.exists(abs_path): abs_path=ROOT_PATH
     
+    # Ambil data disk usage (ini tidak dicache, karena harus real-time)
     colab_total, colab_used, colab_percent = utils.get_disk_usage(ROOT_PATH)
     drive_mount_path = "/content/drive"
     drive_total, drive_used, drive_percent = utils.get_disk_usage(drive_mount_path)
     
+    # Panggilan pertama list_dir (akan menggunakan cache jika ada)
     files = utils.list_dir(abs_path, ROOT_PATH)
     tpl = "main.html"
     
@@ -39,6 +43,37 @@ def index():
         colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,
         drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,
         drive_mount_path=drive_mount_path)
+
+
+def get_dir_data():
+    """ROUTE BARU: Mengembalikan data direktori sebagai JSON (untuk panggilan AJAX)."""
+    req_path = request.args.get("path", ROOT_PATH)
+    try: abs_path=os.path.abspath(req_path)
+    except: abs_path=ROOT_PATH
+    
+    # Keamanan: Pastikan path berada di dalam ROOT_PATH
+    if not utils._is_within_root(abs_path, ROOT_PATH) or not os.path.exists(abs_path): abs_path=ROOT_PATH
+    
+    # Panggilan ke list_dir akan menggunakan cache jika sudah ada
+    files = utils.list_dir(abs_path, ROOT_PATH)
+    
+    return jsonify({
+        "status": "success",
+        "current_path": abs_path,
+        "files": files,
+    })
+
+
+def clear_app_cache():
+    """ROUTE BARU: Memicu pembersihan cache aplikasi (dipanggil setelah operasi write/upload)."""
+    global cache
+    
+    if cache is None: return jsonify({"status":"error", "message":"Cache module not initialized"}), 500
+    
+    # Panggil fungsi pembersihan terpusat dari modul cache
+    cache.clear_all_caches()
+    
+    return jsonify({"status":"success", "message":"Application cache cleared."})
 
 
 def open_file():
