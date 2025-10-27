@@ -16,15 +16,15 @@
             
             <div class="disk-bar-wrapper">
                 
-                <div class="disk-item" id="colab-disk-info">
+                <div class="disk-item">
                     <strong>Colab ({{ format_size(colab_used) }} / {{ format_size(colab_total) }}):</strong>
                     <div class="progress-bar">
-                        <div class="progress" style="width: {{ colab_percent|round(2) }}%;"></div>
+                        <div class="progress" style="width: {{ colab_percent|round(2) }}%; background-color: #007bff;"></div>
                     </div>
                 </div>
 
                 {% if drive_total > 0 %}
-                <div class="disk-item" id="drive-disk-info">
+                <div class="disk-item">
                     <strong>Drive ({{ format_size(drive_used) }} / {{ format_size(drive_total) }}):</strong>
                     <div class="progress-bar">
                         <div class="progress" style="width: {{ drive_percent|round(2) }}%; background-color: #28a745;"></div>
@@ -33,52 +33,54 @@
                 {% endif %}
             </div>
 
-            <div class="current-path"><strong>Path:</strong> <code id="current-path-code">{{ path }}</code></div>
+            <div class="current-path"><strong>Path:</strong> <code id="current-path-display">{{ path }}</code></div>
         </div>
 
-        <div id="file-list" class="file-list">
+        {# File List / Grid Container #}
+        <div class="file-list list-view" id="file-list">
             {% for f in files %}
-                {% set target_path = f['full_path'] %}
-                {# Logika pintasan MyDrive tetap dipertahankan #}
-                {% if f['is_dir'] and f['full_path'] == drive_mount_path and os_path.exists(os_path.join(drive_mount_path, "MyDrive")) %}
-                    {% set target_path = os_path.join(drive_mount_path, "MyDrive") %}
-                {% endif %}
-
-                {% set icon_class = f['icon_class'] %}
+            <a href="{% if f.is_dir %}/?path={{ f.full_path }}{% else %}/file?path={{ f.full_path }}{% endif %}" class="file-item {% if f.is_dir %}is-dir{% endif %}" data-path="{{ f.full_path }}">
                 
-                {% if f['is_dir'] %}
-                    <a href="#" class="file-item file-folder js-folder-link" data-path="{{ target_path }}">
-                        
-                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
-                        
-                        <i class="fas {{ icon_class }} fa-fw"></i>
-
-                        <span class="file-size-absolute">{{ f['size'] }}</span>
-
-                        <div class="file-text-container">
-                            <span class="file-name">{{ f['name'] }}</span>
-                            <span class="file-size">{{ f['size'] }}</span>
-                        </div>
-                    </a>
-                {% else %}
-                    <div class="file-item file-file js-file-item" data-path="{{ f['full_path'] }}">
-
-                        <span class="file-name-absolute" title="{{ f['name'] }}">{{ f['name'] }}</span>
-                        
-                        <i class="fas {{ icon_class }} fa-fw"></i>
-
-                        <span class="file-size-absolute">{{ f['size'] }}</span>
-
-                        <div class="file-text-container">
-                            <span class="file-name">{{ f['name'] }}</span>
-                            <span class="file-size">{{ f['size'] }}</span>
-                        </div>
-                    </div>
-                {% endif %}
+                <div class="file-icon">
+                    {% if not f.is_dir and f.icon_class == 'fas fa-image' %}
+                        {# ⭐️ BARU: Tampilkan Thumbnail jika file adalah Gambar #}
+                        <img 
+                            loading="lazy" 
+                            src="{{ url_for('get_thumbnail', path=f.full_path) }}" 
+                            alt="{{ f.name }}" 
+                            title="{{ f.name }}"
+                            onerror="this.onerror=null; this.src=''; this.classList.add('hide-img'); this.nextElementSibling.classList.remove('hide-icon');"
+                        >
+                        {# Ikon Fallback (tersembunyi secara default, muncul jika gambar gagal) #}
+                        <i class="{{ f.icon_class }} hide-icon"></i> 
+                    {% else %}
+                        {# Folder atau jenis file lainnya: Tampilkan ikon saja #}
+                        <i class="{{ f.icon_class }}"></i>
+                    {% endif %}
+                </div>
+                
+                <div class="file-details">
+                    <span class="file-name">{{ f.name }}</span>
+                    <span class="file-size">{{ f.size }}</span>
+                </div>
+                
+                <div class="file-checkbox">
+                    <i class="fas fa-check-circle"></i>
+                </div>
+            </a>
             {% endfor %}
         </div>
         
-        {# --- MENU OVERLAY --- #}
+        {# File Viewer Modal (untuk file teks) #}
+        <div id="file-viewer-modal" class="modal-overlay">
+            <div class="modal-content">
+                <button class="close-btn" id="close-viewer">&times;</button>
+                <h3 id="viewer-filename"></h3>
+                <div id="viewer-content"></div>
+            </div>
+        </div>
+
+        {# Menu Aksi Overlay #}
         <div id="menu-overlay">
             <div class="menu-modal">
                 <h3>Menu Aksi <button class="close-btn" id="close-menu">&times;</button></h3>
@@ -98,24 +100,28 @@
                 <i class="fas fa-th-large"></i>
                 <span id="view-label" style="display:none;">Grid</span> </a>
             
+            {% if path != root_path %}
             {# Tombol Home #}
-            <a href="#" id="home-button" data-path="{{ root_path }}" class="nav-icon js-folder-link">
+            <a href="/?path={{ root_path }}" class="nav-icon">
                 <i class="fas fa-home"></i>
                 </a>
+            {% endif %}
             
             {# Tombol Kembali #}
-            <a href="#" id="back-button" class="nav-icon"> 
+            {% if path != root_path %}
+            <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
                 </a>
+            {% endif %}
 
-            {# Tombol Dunia/Browser #}
+            {# Tombol Dunia/Browser (Berubah menjadi Hamburger saat Seleksi) #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
                 </a>
         </div>
     </div>
     
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
-
 </body>
 </html>
