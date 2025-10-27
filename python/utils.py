@@ -6,7 +6,8 @@ import hashlib
 
 # Variabel yang akan disuntikkan dari app.py (HARAP TIDAK DIHAPUS)
 ROOT_PATH = "/content" 
-THUMBNAIL_CACHE_PATH = os.path.join(os.path.abspath("/tmp"), "thumbs") 
+# PERUBAHAN: Pastikan nama variabel cache ini sesuai dengan bootloader/app.py
+THUMBNAIL_CACHE_PATH = "/tmp/colab_thumbs_cache" 
 THUMBNAIL_SIZE = (1024, 1024) 
 
 # --- UTILITY FUNCTIONS ---
@@ -55,7 +56,8 @@ def get_file_icon_class(filename):
     if ext in ['.zip', '.rar', '.7z', '.tar', '.gz']: return "fas fa-file-archive"
     elif ext in ['.mp4', '.mkv', '.avi', '.mov', '.wmv']: return "fas fa-video"
     elif ext in ['.mp3', '.wav', '.ogg', '.flac']: return "fas fa-file-audio"
-    elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.bmp', '.svg']: return "fas fa-image"
+    # PERUBAHAN: Tambahkan webp, ico, svg ke daftar gambar
+    elif ext in ['.jpg', '.jpeg', '.png', '.gif', '.webp', '.ico', '.bmp', '.svg']: return "fas fa-image" 
     elif ext in ['.pdf']: return "fas fa-file-pdf"
     elif ext in ['.doc', '.docx']: return "fas fa-file-word"
     elif ext in ['.xls', '.xlsx']: return "fas fa-file-excel"
@@ -68,17 +70,17 @@ def get_file_icon_class(filename):
 def generate_thumbnail(file_path):
     """Membuat atau mengambil thumbnail dari cache."""
     
-    # 1. Tentukan Nama File Cache
+    # 1. Tentukan Nama File Cache (Menggunakan hash dari path dan mtime)
     try:
         # Gunakan hash path dan waktu modifikasi (mtime) untuk keunikan dan invalidasi
         mtime = str(os.path.getmtime(file_path))
         hash_name = hashlib.md5(f"{file_path}_{mtime}".encode()).hexdigest()
         
-        # Simpan dalam format JPEG yang efisien
+        # Simpan dalam format JPEG (.jpg)
         cache_file_name = f"{hash_name}.jpg" 
         cache_path = os.path.join(THUMBNAIL_CACHE_PATH, cache_file_name)
     except Exception as e:
-        print(f"Error hashing path {file_path}: {e}")
+        # print(f"Error hashing path {file_path}: {e}")
         return None
 
     # 2. Cek Cache
@@ -92,9 +94,10 @@ def generate_thumbnail(file_path):
         
         with Image.open(file_path) as img:
             # Mengubah ukuran gambar (resize)
-            img.thumbnail(THUMBNAIL_SIZE) 
+            # Menggunakan Image.Resampling.LANCZOS untuk hasil terbaik
+            img.thumbnail(THUMBNAIL_SIZE, Image.Resampling.LANCZOS) 
             
-            # Simpan dengan kualitas yang baik ke cache
+            # Simpan dengan kualitas yang baik ke cache (selalu JPEG)
             img.save(cache_path, "JPEG", quality=85) 
             
         # print(f"✅ Thumbnail dibuat: {cache_path}")
