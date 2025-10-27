@@ -33,66 +33,78 @@
                 {% endif %}
             </div>
 
-            <div class="current-path"><strong>Path:</strong> <code id="current-path-display">{{ path }}</code></div>
-        </div>
-
-        {# File List / Grid Container #}
-        <div class="file-list list-view" id="file-list">
-            {% for f in files %}
-            <a href="{% if f.is_dir %}/?path={{ f.full_path }}{% else %}/file?path={{ f.full_path }}{% endif %}" class="file-item {% if f.is_dir %}is-dir{% endif %}" data-path="{{ f.full_path }}">
-                
-                <div class="file-icon">
-                    {# ⭐️ PERUBAHAN UTAMA: Logika Thumbnail #}
-                    {# Cek apakah file adalah gambar (menggunakan icon_class "fas fa-image") dan bukan folder #}
-                    {% if not f.is_dir and f.icon_class == 'fas fa-image' %}
-                        {# Tampilkan Thumbnail: Memanggil endpoint /thumb #}
-                        <img 
-                            loading="lazy" 
-                            src="{{ url_for('get_thumbnail', path=f.full_path) }}" 
-                            alt="{{ f.name }}" 
-                            title="{{ f.name }}"
-                            {# Logika Fallback JS: Jika gambar gagal dimuat, sembunyikan IMG dan tampilkan Ikon #}
-                            onerror="this.onerror=null; this.src=''; this.classList.add('hide-img'); this.nextElementSibling.classList.remove('hide-icon');"
-                        >
-                        {# Ikon Fallback (tersembunyi secara default, muncul jika gambar gagal atau dalam List View) #}
-                        <i class="{{ f.icon_class }} hide-icon"></i> 
-                    {% else %}
-                        {# Folder atau jenis file lainnya: Tampilkan ikon saja #}
-                        <i class="{{ f.icon_class }}"></i>
-                    {% endif %}
-                </div>
-                
-                <div class="file-details">
-                    <span class="file-name">{{ f.name }}</span>
-                    <span class="file-size">{{ f.size }}</span>
-                </div>
-                
-                <div class="file-checkbox">
-                    <i class="fas fa-check-circle"></i>
-                </div>
-            </a>
-            {% endfor %}
-        </div>
-        
-        {# File Viewer Modal (untuk file teks) #}
-        <div id="file-viewer-modal" class="modal-overlay">
-            <div class="modal-content">
-                <button class="close-btn" id="close-viewer">&times;</button>
-                <h3 id="viewer-filename"></h3>
-                <div id="viewer-content"></div>
+            <div class="current-path">
+                <strong>Path:</strong> <code id="current-path-display">{{ path }}</code>
             </div>
         </div>
 
-        {# Menu Aksi Overlay #}
+        <div id="file-list" class="file-list list-view">
+            
+            {% for f in files %}
+            
+            {# FILE ITEM: Gunakan tag <a> untuk navigasi, dan class/data-path untuk JS #}
+            <a href="{{ '/?path=' + f['full_path'] if f['is_dir'] else '/file?path=' + f['full_path'] }}" 
+               class="file-item file-{{ 'dir' if f['is_dir'] else 'file' }}" 
+               data-path="{{ f['full_path'] }}"
+               data-is-dir="{{ 'true' if f['is_dir'] else 'false' }}">
+                
+                {# 1. TEXT UNTUK GRID VIEW (Teks Absolut) #}
+                <span class="file-name-absolute">{{ f['name'] }}</span>
+                <span class="file-size-absolute">{{ f['size'] }}</span>
+
+                {# 2. ICON & THUMBNAIL CONTAINER #}
+                <div class="file-icon">
+                    {# Tag <img> untuk thumbnail, diurutkan sebelum <i> #}
+                    {# Logika onerror/onload akan mengontrol kelas .hide-img pada img #}
+                    <img src="{{ url_for('static', filename='thumbnails/' + f['full_path']|hash_file) }}" 
+                         alt="T" 
+                         class="hide-img" 
+                         onerror="this.classList.add('hide-img');"
+                         onload="this.classList.remove('hide-img');">
+
+                    {# Fallback Icon (Folder/File Icon) #}
+                    <i class="fas {{ f['icon_class'] }} fa-fw"></i>
+                </div>
+                
+                {# 3. LIST VIEW TEXT CONTAINER (Icon dan Text container sudah berdampingan karena flexbox) #}
+                <div class="file-text-container">
+                    <span class="file-name">{{ f['name'] }}</span>
+                    <span class="file-size">{{ f['size'] }}</span>
+                </div>
+                
+                {# 4. ICON CEKLIS (Akan dikontrol visibilitasnya oleh CSS kelas .selected) #}
+                <i class="fas fa-check-circle file-checkmark"></i>
+
+            </a>
+            
+            {% endfor %}
+
+        </div>
+
+        <div id="file-viewer-modal">
+            <div class="modal-content">
+                <div id="viewer-filename">Nama File</div>
+                <div id="viewer-content">
+                    <pre>Memuat...</pre>
+                </div>
+            </div>
+        </div>
+        
         <div id="menu-overlay">
             <div class="menu-modal">
                 <h3>Menu Aksi <button class="close-btn" id="close-menu">&times;</button></h3>
                 <div class="menu-list">
-                    </div>
+                    <div class="menu-item" id="menu-delete"><i class="fas fa-trash"></i> Hapus yang Terpilih</div>
+                    <div class="menu-item" id="menu-copy"><i class="fas fa-copy"></i> Salin</div>
+                    <div class="menu-item" id="menu-move"><i class="fas fa-cut"></i> Pindah</div>
+                    <div class="menu-item" id="menu-new-folder"><i class="fas fa-folder-plus"></i> Folder Baru</div>
+                    <div class="menu-item" id="menu-upload"><i class="fas fa-upload"></i> Unggah File</div>
+                </div>
             </div>
         </div>
 
         <div class="fixed-footer">
+            
             {# Tombol Plus/Menu Cepat #}
             <a href="#" class="nav-icon" id="menu-toggle">
                 <i class="fas fa-plus"></i>
@@ -103,28 +115,28 @@
                 <i class="fas fa-th-large"></i>
                 <span id="view-label" style="display:none;">Grid</span> </a>
             
+            {# Tombol Home (Muncul hanya jika tidak di root) #}
             {% if path != root_path %}
-            {# Tombol Home #}
             <a href="/?path={{ root_path }}" class="nav-icon">
                 <i class="fas fa-home"></i>
                 </a>
             {% endif %}
             
-            {# Tombol Kembali #}
+            {# Tombol Kembali (Muncul hanya jika tidak di root) #}
             {% if path != root_path %}
             <a href="#" id="back-button" class="nav-icon">
                 <i class="fas fa-arrow-left"></i>
                 </a>
             {% endif %}
 
-            {# Tombol Dunia/Browser (Berubah menjadi Hamburger saat Seleksi) #}
+            {# Tombol Dunia/Browser (Berubah menjadi Paste/Hamburger saat Seleksi) #}
             <a href="#" id="browser-link" class="nav-icon">
                 <i class="fas fa-globe"></i>
                 </a>
         </div>
     </div>
     
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/localforage/1.10.0/localforage.min.js"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+    
 </body>
 </html>
