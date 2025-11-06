@@ -39,22 +39,20 @@ def setup_app():
         import views
     except ImportError as e:
         print(f"FATAL ERROR: Gagal mengimpor modul lokal. Pastikan /python/ ada di sys.path. Error: {e}")
-        # Jika impor gagal, program harus dihentikan
-        raise RuntimeError(f"Gagal memuat modul Flask: {e}") from e
+        sys.exit(1)
 
-    # --- 2. FLASK APP INITIALIZATION ---
-    app = Flask(__name__, template_folder=TEMPLATE_FOLDER, static_folder=STATIC_FOLDER_ROOT, static_url_path="/static")
-    
-    # Suntikkan fungsi utility ke Jinja Environment
-    app.jinja_env.globals.update(format_size=utils.format_size, os_path=os.path)
+    # --- 2. INISIALISASI FLASK ---
+    app = Flask(__name__, 
+                static_folder=STATIC_FOLDER_ROOT, # Static dari root (untuk assets)
+                template_folder=TEMPLATE_FOLDER) # Template dari folder 'html'
 
-    # --- 3. PENYUNTIKAN VARIABEL GLOBAL KE VIEWS DAN TUNNEL ---
-    # Menyuntikkan variabel yang dibutuhkan oleh fungsi-fungsi di modul
-    
-    # Views membutuhkan konfigurasi path dan instance app
+    # --- 3. SUNTIKKAN VARIABEL GLOBAL ---
+    # Variabel utama
     views.ROOT_PATH = ROOT_PATH
     views.DECRYPTION_SUCCESS = DECRYPTION_SUCCESS
     views.TEMPLATE_FOLDER = TEMPLATE_FOLDER
+    
+    # Instance Flask
     views.app = app # SUNTIKKAN INSTANCE APP UTAMA KE MODUL VIEWS
 
     # Tunnel membutuhkan port dan instance app
@@ -65,6 +63,8 @@ def setup_app():
     # Rute didaftarkan menggunakan app.add_url_rule (views.py TIDAK boleh punya @app.route)
     app.add_url_rule('/', view_func=views.index, methods=['GET'])
     app.add_url_rule('/file', view_func=views.open_file, methods=['GET'])
+    # BARIS BARU: Route untuk melayani thumbnail
+    app.add_url_rule('/thumb', view_func=views.serve_thumbnail, methods=['GET'])
 
     print("✅ Aplikasi Flask berhasil diinisialisasi dan modul disuntikkan.")
     
@@ -96,8 +96,5 @@ if __name__=="__main__":
         while True:
             time.sleep(1)
             
-    except RuntimeError as e:
-        print(f"❌ Gagal menjalankan aplikasi: {e}")
-        sys.exit(1)
-    except KeyboardInterrupt:
-        print("Terminated."); sys.exit(0)
+    except Exception as e:
+        print(f"ERROR Fatal di main loop: {e}")
