@@ -1,19 +1,17 @@
-# views.py (Kode FINAL yang Benar)
+# views.py
 import os, sys
 from flask import render_template, send_file, request, jsonify
-# Gunakan import absolut di sini karena sys.path sudah diatur di Colab
 import utils 
 
 # Variabel yang akan disuntikkan dari app.py
 ROOT_PATH = "/content"
 DECRYPTION_SUCCESS = False
 TEMPLATE_FOLDER = ""
-app = None # Biarkan ini None saat import!
+app = None 
 
 
 def index():
     """Route utama untuk menampilkan file manager."""
-    # Pastikan app dan templates sudah disuntikkan sebelum digunakan
     if app is None or TEMPLATE_FOLDER == "": return "Server not fully initialized.", 500
 
     req_path = request.args.get("path", ROOT_PATH)
@@ -32,15 +30,24 @@ def index():
     
     # Logika fallback (HTML mentah)
     if not os.path.exists(os.path.join(TEMPLATE_FOLDER, tpl)):
-        items_html = "\n".join(f\"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>\" for f in files)
+        items_html = "\n".join(f"<div>{'DIR' if f['is_dir'] else 'FILE'} - <a href='/?path={f['full_path']}'>{f['name']}</a> - {f['size']}</div>" for f in files)
         return f"<html><body><h3>{abs_path}</h3>{items_html}</body></html>" 
         
-    return render_template(tpl, path=abs_path, root_path=ROOT_PATH, files=files,\
-        colab_total=colab_total, colab_used=colab_used, colab_percent=colab_percent,\
-        drive_total=drive_total, drive_used=drive_used, drive_percent=drive_percent,\
-        drive_mount_path=drive_mount_path,\
+    # KODE INI DIPERBAIKI (MENGGUNAKAN TANDA KURUNG BUKAN \)
+    return render_template(tpl, 
+        path=abs_path, 
+        root_path=ROOT_PATH, 
+        files=files,
+        colab_total=colab_total, 
+        colab_used=colab_used, 
+        colab_percent=colab_percent,
+        drive_total=drive_total, 
+        drive_used=drive_used, 
+        drive_percent=drive_percent,
+        drive_mount_path=drive_mount_path,
         # Perluas filter jinja2 untuk format size di HTML
-        format_size=utils.format_size)
+        format_size=utils.format_size
+    )
 
 
 def open_file():
@@ -68,7 +75,6 @@ def open_file():
             pass
             
     # Default: Unduh File
-    # as_attachment=True akan memaksa browser mengunduh
     return send_file(abs_path, as_attachment=True, download_name=os.path.basename(abs_path))
     
 # FUNGSI BARU: Route untuk melayani Thumbnail
@@ -98,7 +104,7 @@ def serve_thumbnail():
             return send_file(cache_path, 
                              mimetype=mimetype,
                              max_age=31536000, # Cache selama 1 tahun (nama file adalah hash)
-                             as_attachment=False) # as_attachment=False agar bisa ditampilkan di tag <img>
+                             as_attachment=False)
         else:
             return "Thumbnail generation failed or is not an image.", 404
 
