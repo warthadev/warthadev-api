@@ -7,8 +7,15 @@ from werkzeug.serving import run_simple
 # Variabel yang akan disuntikkan dari app.py
 PORT = 8000
 app = None # Instance aplikasi Flask
+
+# --- MODIFIKASI LOKASI CLOUDFLARED ---
+# 1. Definisikan direktori download baru
+DOWNLOAD_DIR = "/tmp/download"
+# 2. Update CLOUDFLARED_BIN ke lokasi baru
+CLOUDFLARED_BIN = os.path.join(DOWNLOAD_DIR, "cloudflared-linux-amd64")
+# -------------------------------------
+
 # Konfigurasi Tunnel (diambil dari env jika ada, jika tidak, pakai default app.py)
-CLOUDFLARED_BIN = os.path.join(os.getcwd(), "cloudflared-linux-amd64")
 CLOUDFLARE_TIMEOUT = int(os.environ.get("CLOUDFLARE_TIMEOUT", "60"))
 DNS_CHECK_TIMEOUT = int(os.environ.get("DNS_CHECK_TIMEOUT", "90"))
 CLOUDFLARED_RESTARTS = int(os.environ.get("CLOUDFLARED_RESTARTS", "3"))
@@ -42,8 +49,13 @@ def doh_resolves(hostname, timeout=5):
 # --- CLOUDFLARE ENSURE + RUN + RETRY ---
 def ensure_cloudflared():
     if os.path.exists(CLOUDFLARED_BIN) and os.access(CLOUDFLARED_BIN, os.X_OK): return True
+    
+    # BARIS BARU: Pastikan direktori /tmp/download ada
+    os.makedirs(DOWNLOAD_DIR, exist_ok=True)
+    
     try:
         print("Mengunduh cloudflared...")
+        # Gunakan CLOUDFLARED_BIN baru sebagai output path
         rc = subprocess.run(f"wget -q https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -O {CLOUDFLARED_BIN}", shell=True).returncode
         if rc!=0:
              rc = subprocess.run(f"curl -sL https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-linux-amd64 -o {CLOUDFLARED_BIN}", shell=True).returncode
@@ -96,6 +108,7 @@ def run_flask_and_tunnel():
     while restarts < CLOUDFLARED_RESTARTS:
         restarts += 1
         print(f"[TUNNEL] Mencoba membuat terowongan (attempt {restarts}/{CLOUDFLARED_RESTARTS})...")
+        # CLOUDFLARED_BIN sudah menunjuk ke /tmp/download/cloudflared-linux-amd64
         args = [CLOUDFLARED_BIN, "tunnel", "--url", f"http://127.0.0.1:{PORT}", "--no-autoupdate", "--loglevel", "info", "--edge-ip-version", "auto"]
         proc = start_cloudflared(args)
         if not proc:
